@@ -1,0 +1,9 @@
+# 環境変数ファイル
+.env
+
+# Python関連
+__pycache__/
+*.pyc
+
+# その他Docker関連
+*.log
