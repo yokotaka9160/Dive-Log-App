@@ -40,7 +40,7 @@ class Divelog(models.Model):
         MIDDLE = 'middle', _('中')
         HIGH = 'high', _('強')
 
-    author = models.ForeignKey( #「1人のUserが、複数のArticleを投稿できる」という関係の定義
+    user = models.ForeignKey( #「1人のUserが、複数のArticleを投稿できる」という関係の定義
         User, #ForeignKeyの第一引数 で、「どのモデルを参照するか」
         on_delete=models.CASCADE, #参照先( User )のレコードが削除されたときの挙動を指定(親が消えたら子も連動して削除する)
         related_name='dive_logs', #逆参照名（user.dive_logでユーザのダイブログを参照できるようになる設定）

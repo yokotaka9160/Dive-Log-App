@@ -32,6 +32,8 @@ DEBUG = True
 
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'web']
 
+#accounts アプリ内の User モデルを認証・管理機能の標準として使用する
+AUTH_USER_MODEL = 'accounts.User' #追加
 
 # Application definition
 
@@ -43,6 +45,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'divelogs',
+    'accounts',
 ]
 
 MIDDLEWARE = [
@@ -116,7 +119,14 @@ USE_I18N = True
 
 USE_TZ = True
 
+LANGUAGES = [
+    ('ja', 'Japanese'),
+    ('en', 'English'),
+]
 
+LOCALE_PATHS = [
+    BASE_DIR / 'locale',
+]
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
