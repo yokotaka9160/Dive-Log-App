@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Dive Log</p>
+    <h1 class="page-title">{{ form_title }}</h1>
+  </div>
+</div>
+
+<div class="form-wrap card-panel">
+  <form method="post" enctype="multipart/form-data">
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+    {% endif %}
+
+    <div class="field">
+      <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
+      {{ form.title }}
+      {{ form.title.errors }}
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.dive_date.id_for_label }}">{{ form.dive_date.label }}</label>
+        {{ form.dive_date }}{{ form.dive_date.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.location.id_for_label }}">{{ form.location.label }}</label>
+        {{ form.location }}{{ form.location.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.dive_point_name.id_for_label }}">{{ form.dive_point_name.label }}</label>
+        {{ form.dive_point_name }}{{ form.dive_point_name.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.entry_way.id_for_label }}">{{ form.entry_way.label }}</label>
+        {{ form.entry_way }}{{ form.entry_way.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.dive_purpose.id_for_label }}">{{ form.dive_purpose.label }}</label>
+        {{ form.dive_purpose }}{{ form.dive_purpose.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.entry_date.id_for_label }}">{{ form.entry_date.label }}</label>
+        {{ form.entry_date }}{{ form.entry_date.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.start_press.id_for_label }}">{{ form.start_press.label }}</label>
+        {{ form.start_press }}{{ form.start_press.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.exit_date.id_for_label }}">{{ form.exit_date.label }}</label>
+        {{ form.exit_date }}{{ form.exit_date.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.end_press.id_for_label }}">{{ form.end_press.label }}</label>
+        {{ form.end_press }}{{ form.end_press.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.tank_type.id_for_label }}">{{ form.tank_type.label }}</label>
+        {{ form.tank_type }}{{ form.tank_type.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.weight.id_for_label }}">{{ form.weight.label }}</label>
+        {{ form.weight }}{{ form.weight.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.current_str.id_for_label }}">{{ form.current_str.label }}</label>
+        {{ form.current_str }}{{ form.current_str.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.weather.id_for_label }}">{{ form.weather.label }}</label>
+        {{ form.weather }}{{ form.weather.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.wave_height.id_for_label }}">{{ form.wave_height.label }}</label>
+        {{ form.wave_height }}{{ form.wave_height.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.wind_speed.id_for_label }}">{{ form.wind_speed.label }}</label>
+        {{ form.wind_speed }}{{ form.wind_speed.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.temperature.id_for_label }}">{{ form.temperature.label }}</label>
+        {{ form.temperature }}{{ form.temperature.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.surf_temp.id_for_label }}">{{ form.surf_temp.label }}</label>
+        {{ form.surf_temp }}{{ form.surf_temp.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.w_bottom_temp.id_for_label }}">{{ form.w_bottom_temp.label }}</label>
+        {{ form.w_bottom_temp }}{{ form.w_bottom_temp.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.ave_depth.id_for_label }}">{{ form.ave_depth.label }}</label>
+        {{ form.ave_depth }}{{ form.ave_depth.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.max_depth.id_for_label }}">{{ form.max_depth.label }}</label>
+        {{ form.max_depth }}{{ form.max_depth.errors }}
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.transparency.id_for_label }}">{{ form.transparency.label }}</label>
+        {{ form.transparency }}{{ form.transparency.errors }}
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="{{ form.fish.id_for_label }}">{{ form.fish.label }}</label>
+      {{ form.fish }}
+      {% if form.fish.help_text %}<span class="helptext">{{ form.fish.help_text }}</span>{% endif %}
+      {{ form.fish.errors }}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.free_text_field.id_for_label }}">{{ form.free_text_field.label }}</label>
+      {{ form.free_text_field }}{{ form.free_text_field.errors }}
+    </div>
+
+    <!-- <div class="field">
+      <label for="{{ form.photo.id_for_label }}">{{ form.photo.label }}</label>
+      {{ form.photo }}{{ form.photo.errors }}
+    </div> -->
+
+    <div class="form-row">
+      <div class="field">
+        <label for="{{ form.buddy_name.id_for_label }}">{{ form.buddy_name.label }}</label>
+        {{ form.buddy_name }}{{ form.buddy_name.errors }}
+      </div>
+      <div class="field">
+        <label for="{{ form.inst_name.id_for_label }}">{{ form.inst_name.label }}</label>
+        {{ form.inst_name }}{{ form.inst_name.errors }}
+      </div>
+    </div>
+
+    <div class="detail-actions">
+      {% if form.errors %}
+        <div style="color: red; margin-bottom: 15px;">
+          <p>入力内容にエラーがあります。確認してください：</p>
+          {{ form.errors }}
+        </div>
+      {% endif %}
+      <button type="submit" class="btn btn-accent">{{ submit_label }}</button>
+      <a href="{% url 'divelogs:log_list' %}" class="btn btn-ghost">キャンセル</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

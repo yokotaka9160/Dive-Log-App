@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}ダイブログを削除{% endblock %}
+
+{% block content %}
+<div class="form-wrap auth-wrap card-panel">
+  <h1 class="page-title" style="font-size:20px;">ダイブログを削除しますか？</h1>
+  <p class="page-sub">{{ log.dive_date }} / {{ log.location }} /（{{ log.dive_point_name }}）を削除します。この操作は取り消せません。</p>
+  <form method="post" style="margin-top:20px;">
+    {% csrf_token %}
+    <div class="detail-actions">
+      <button type="submit" class="btn btn-danger">削除する</button>
+      <a href="{{ object.get_absolute_url }}" class="btn btn-ghost">キャンセル</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

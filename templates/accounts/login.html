@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}ログイン{% endblock %}
+
+{% block content %}
+<div class="auth-wrap card-panel">
+  <p class="eyebrow">Welcome back</p>
+  <h1 class="page-title" style="font-size:22px;margin-bottom:20px;">ログイン</h1>
+
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label for="{{ form.username.id_for_label }}">メールアドレス</label>
+      {{ form.username }}{{ form.username.errors }}
+    </div>
+    <div class="field">
+      <label for="{{ form.password.id_for_label }}">パスワード</label>
+      {{ form.password }}{{ form.password.errors }}
+    </div>
+    <button type="submit" class="btn btn-accent btn-block">ログイン</button>
+  </form>
+  <p class="auth-alt">アカウントをお持ちでない方は <a href="{% url 'accounts:register' %}">新規登録</a></p>
+</div>
+{% endblock %}

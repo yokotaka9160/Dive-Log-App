@@ -33,8 +33,13 @@ DEBUG = True
 ALLOWED_HOSTS = ['localhost', '127.0.0.1', '0.0.0.0', 'web']
 
 #accounts アプリ内の User モデルを認証・管理機能の標準として使用する
-AUTH_USER_MODEL = 'accounts.User' #追加
 
+AUTH_USER_MODEL = 'accounts.User' #追加
+# ログイン成功後のリダイレクト先（ログ一覧画面へ遷移させる場合）
+LOGIN_REDIRECT_URL = "divelogs:log_list"
+
+# ログアウト後のリダイレクト先（トップページへ遷移させる場合）
+LOGOUT_REDIRECT_URL = "divelogs:landing"
 # Application definition
 
 INSTALLED_APPS = [
@@ -58,12 +63,17 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://127.0.0.1:8000',
+]
+
 ROOT_URLCONF = 'deeplog.urls'
 
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -130,7 +140,8 @@ LOCALE_PATHS = [
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.2/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = "/static/"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field

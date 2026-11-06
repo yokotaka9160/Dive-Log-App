@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}Dive No.{{ log.calculated_dive_number }}{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">
+      {% if log.calculated_dive_number %}Dive No.{{ log.calculated_dive_number }} · {% endif %}{{ log.dive_date|date:"Y年n月j日" }}
+    </p>
+    <h1 class="page-title">{{ log.location }}</h1>
+    <p class="page-sub">{% if log.dive_point_name %} · {{ log.dive_point_name }}{% endif %}</p>
+  </div>
+  <a href="{% url 'divelogs:log_list' %}" class="btn btn-ghost btn-sm">← 一覧へ</a>
+</div>
+
+<div class="detail-grid">
+  <div>
+    <!-- {% if log.photo %}
+      <div class="detail-media"><img src="{{ log.photo.url }}" alt="{{ log.title }}"></div>
+    {% else %} -->
+      <div class="detail-media placeholder">◒</div>
+    <!-- {% endif %} -->
+
+    {% if log.fish %}
+      <div class="tag-row" style="margin-top:20px;">
+        {% for fish_name in log.fish.split %}
+          <span class="tag">{{ fish_name }}</span>
+        {% empty %}
+          <!-- splitで区切れない場合のフォールバック（カンマ区切りの場合） -->
+          {% for fish_name in log.fish.split|default:log.fish %}
+            <span class="tag">{{ fish_name }}</span>
+          {% endfor %}
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% if log.notes %}
+      <div class="notes">{{ log.free_text_field }}
+    {% endif %}
+  </div>
+
+  <div>
+    <div class="readout">
+      <div class="cell">
+        <div class="label">{{ form.entry_way.label }}</div>
+        <div class="value">{{ log.get_entry_way_display|default:"—" }}<span class="unit"></span></div>
+      </div>
+      <div class="cell">
+        <div class="label">{{ form.dive_purpose.label }}</div>
+        <div class="value">{{ log.get_dive_purpose_display|default:"—" }}<span class="unit"></span></div>
+      </div>
+      <div class="cell">
+        <div class="label">{{ form.entry_date.label }}</div>
+        <div class="value">{{ log.entry_date|default:"—" }}<span class="unit"></span></div>
+      </div>
+      <div class="cell">
+        <div class="label">{{ form.exit_date.label }}</div>
+        <div class="value">{{ log.exit_date|default:"—" }}<span class="unit"></span></div>
+      </div>
+    </div>
+
+    {% if log.buddy %}<p class="meta-line">バディ: {{ log.buddy }}</p>{% endif %}
+    <p class="meta-line">記録者: {{ log.user.username }}</p>
+    {% comment %}
+    <!-- <p class="meta-line">お気に入り: {{ log.favorite_count }} 件</p> -->
+
+    <!-- {% if user.is_authenticated %}
+      <form method="post" action="{% url 'toggle_favorite' log.pk %}" style="margin-top:16px;">
+        {% csrf_token %}
+        <input type="hidden" name="next" value="{{ request.get_full_path }}">
+        <button type="submit" class="btn btn-block {% if is_favorited %}btn-accent{% endif %}">
+          {% if is_favorited %}♥ お気に入り登録済み{% else %}♡ お気に入りに追加{% endif %}
+        </button>
+      </form>
+    {% endif %} -->
+    {% endcomment %}
+
+    {% if user == log.owner %}
+      <div class="detail-actions">
+        <a href="{% url 'divelogs:log_update' log.pk %}" class="btn">編集</a>
+        <a href="{% url 'divelogs:log_delete' log.pk %}" class="btn btn-danger">削除</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+<div class="readout" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px;">
+  <div class="cell">
+    <div class="label">{{ form.tank_type.label }}</div>
+    <div class="value">{{ log.get_tank_type_display|default:log.tank_type|default:"—" }}</div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.start_press.label }}</div>
+    <div class="value">{{ log.start_press|default:"—" }}<span class="unit">bar</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.end_press.label }}</div>
+    <div class="value">{{ log.end_press|default:"—" }}<span class="unit">bar</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.weight.label }}</div>
+    <div class="value">{{ log.weight|default:"—" }}<span class="unit">kg</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.current_str.label }}</div>
+    <div class="value">{{ log.get_current_str_display|default:log.current_str|default:"—" }}</div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.transparency.label }}</div>
+    <div class="value">{{ log.transparency|default:"—" }}<span class="unit">m</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">潜水時間</div>
+    <div class="value">{{ log.duration_minutes|default:"—" }}<span class="unit">分</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.transparency.label }}</div>
+    <div class="value">{{ log.transparency|default:"—" }}<span class="unit">m</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.start_press.label }}</div>
+    <div class="value">{{ log.start_press|default:"—" }}<span class="unit"></span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.end_press.label }}</div>
+    <div class="value">{{ log.end_press|default:"—" }}<span class="unit"></span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.ave_depth.label }}</div>
+    <div class="value">{{ log.ave_depth|default:"—" }}<span class="unit">m</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.max_depth.label }}</div>
+    <div class="value">{{ log.max_depth|default:"—" }}<span class="unit">m</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.surf_temp.label }}</div>
+    <div class="value">{{ log.surf_temp|default:"—" }}<span class="unit">℃</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.w_bottom_temp.label }}</div>
+    <div class="value">{{ log.w_bottom_temp|default:"—" }}<span class="unit">℃</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.tank_type.label }}</div>
+    <div class="value">{{ log.get_tank_type_display|default:log.tank_type|default:"—" }}</div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.weight.label }}</div>
+    <div class="value">{{ log.weight|default:"—" }}<span class="unit">kg</span></div>
+  </div>
+  <div class="cell">
+    <div class="label">{{ form.current_str.label }}</div>
+    <div class="value">{{ log.get_current_str_display|default:log.current_str|default:"—" }}</div>
+  </div>
+</div>
+
+{% if user == log.user %}
+      <div class="detail-actions">
+        <a href="{% url 'divelogs:log_update' log.pk %}" class="btn">編集</a>
+        <a href="{% url 'divelogs:log_delete' log.pk %}" class="btn btn-danger">削除</a>
+      </div>
+    {% endif %}
+{% endblock %}

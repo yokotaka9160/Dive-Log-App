@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}新規登録{% endblock %}
+
+{% block content %}
+<div class="auth-wrap card-panel">
+  <p class="eyebrow">Join DEEPLOG</p>
+  <h1 class="page-title" style="font-size:22px;margin-bottom:20px;">新規登録</h1>
+
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <div class="field">
+        <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+        {{ field }}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text|safe }}</span>{% endif %}
+        {{ field.errors }}
+      </div>
+    {% endfor %}
+    <button type="submit" class="btn btn-accent btn-block">登録する</button>
+  </form>
+  <p class="auth-alt">すでにアカウントをお持ちの方は <a href="{% url 'accounts:login' %}">ログイン</a></p>
+</div>
+{% endblock %}

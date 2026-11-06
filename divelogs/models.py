@@ -1,10 +1,11 @@
 from django.db import models
 from django.contrib.auth import get_user_model
 from django.utils.translation import gettext_lazy as _
+from django.contrib import admin
 
 User = get_user_model()
 
-class Divelog(models.Model):
+class DiveLog(models.Model):
     class EntryWay(models.TextChoices):
         BEACH = 'beach', _('ビーチ')  #変数名 = DBに保存される値, 画面に表示される値
         BOAT = 'boat', _('ボート')
@@ -46,6 +47,19 @@ class Divelog(models.Model):
         related_name='dive_logs', #逆参照名（user.dive_logでユーザのダイブログを参照できるようになる設定）
         verbose_name=_("ダイバー") #管理画面やフォームで表示される ラベル文字列 を指定
     )
+    @property
+    @admin.display(description=_("通算本数"))
+    def calculated_dive_number(self):
+        """同じユーザーのログの中で、エントリー日時が古い順に何番目かを計算する"""
+        if not self.user or not self.entry_date:
+            return None
+        
+        # 自分よりエントリー日時が古い（または同時の）ログの件数をカウント
+        count = DiveLog.objects.filter(
+            user=self.user,
+            entry_date__lte=self.entry_date
+        ).count()
+        return count
     dive_date = models.DateField(
         verbose_name=_("潜水日付")
     )
@@ -75,6 +89,15 @@ class Divelog(models.Model):
     exit_date = models.DateTimeField(
         verbose_name=_("エキジット日時")
     )
+    @property
+    @admin.display(description=_("潜水時間（分）"))
+    def duration_minutes(self):
+        """潜水時間を分単位で計算して返す"""
+        if self.entry_date and self.exit_date:
+            delta = self.exit_date - self.entry_date
+            return int(delta.total_seconds() // 60)
+        return None   
+
     start_press = models.IntegerField(
         verbose_name=_("潜水開始時タンク圧力")
     )
@@ -117,6 +140,14 @@ class Divelog(models.Model):
     )
     w_bottom_temp = models.FloatField(
         verbose_name=_("水底温度")
+    )
+    ave_depth = models.FloatField(
+        default=0.0,
+        verbose_name=_("平均水深(m)")
+    )
+    max_depth = models.FloatField(
+        default=0.0,
+        verbose_name=_("最大深度(m)")
     )
     transparency = models.IntegerField(
         verbose_name=_("透明度")

@@ -7,7 +7,9 @@ class User(AbstractUser):
     Djangoの標準Userを拡張したカスタムユーザーモデル。
     username, email, password は AbstractUser に定義済み。
     """
-
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username']
+    
     class DiverRank(models.TextChoices):
         NoRank = 'no_rank', _('ランクなし')
         OpenWater = 'OW', _('オープンウォータ―')
@@ -38,6 +40,12 @@ class User(AbstractUser):
         auto_now=True,
         verbose_name=_("更新日時")
     )
+    image = models.ImageField(
+        upload_to='profile/images/',
+        blank=True,
+        null=True,
+        verbose_name=_("プロフィール画像")
+    )
 
     class Meta:
         verbose_name = _("ユーザー")
@@ -50,3 +58,5 @@ class User(AbstractUser):
     def dive_nums(self):
         """このユーザーが投稿したダイブログの件数"""
         return self.dive_logs.count()
+
+

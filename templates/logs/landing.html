@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block title %}DEEPLOG — 記録を始める{% endblock %}
+
+{% block content %}
+<section class="landing">
+  <p class="landing-kicker mono">SCUBA DIVING LOGBOOK</p>
+  <h1 class="landing-title">潜るたび、深くなる<br>あなたのダイブログ</h1>
+  <p class="landing-lead">
+    最大深度・潜水時間・水温・出会った生物まで。
+    一本ごとの記録を計器のように残し、いつでも振り返れます。
+  </p>
+
+  <div class="landing-actions">
+    <a href="{% url 'accounts:login' %}" class="btn btn-accent btn-lg">ログイン</a>
+    <a href="{% url 'accounts:register' %}" class="btn btn-outline btn-lg">新規登録</a>
+  </div>
+
+  <ul class="landing-points">
+    <li><span class="lp-num mono">01</span>ダイブログの記録・編集・削除</li>
+    <li><span class="lp-num mono">02</span>並び替え・検索でログを整理</li>
+    <li><span class="lp-num mono">03</span>お気に入り登録と写真の記録</li>
+  </ul>
+</section>
+{% endblock %}

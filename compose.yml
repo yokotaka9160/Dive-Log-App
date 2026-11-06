@@ -1,6 +1,7 @@
 services:
   web:
     build: .
+    container_name: deeplog_web
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - .:/app
@@ -13,6 +14,11 @@ services:
 
   db:
     image: postgres:16
+    container_name: deeplog_db
+    environment:
+      POSTGRES_DB: deeplog_db
+      POSTGRES_USER: world_company
+      POSTGRES_PASSWORD: djan2005go
     volumes:
       - postgres_data:/var/lib/postgresql/data
     env_file:

@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}ログ一覧{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Dive Log</p>
+    <h1 class="page-title">
+      {% if mine_only %}マイログ{% elif fav_only %}お気に入り{% else %}ダイブログ一覧{% endif %}
+    </h1>
+    <p class="page-sub">記録された潜水の記録{% if page_obj %}・全 {{ page_obj.paginator.count }} 本{% endif %}</p>
+  </div>
+  {% if user.is_authenticated %}
+    <a href="{% url 'divelogs:log_create' %}" class="btn btn-accent">＋ 新しいダイブログ</a>
+  {% endif %}
+</div>
+
+<!-- <div class="toolbar"> -->
+  <!-- <form method="get" class="search-form" role="search">
+    <input type="search" name="q" value="{{ query }}" placeholder="サイト名・生物・メモで検索">
+    {% if current_sort %}<input type="hidden" name="sort" value="{{ current_sort }}">{% endif %}
+    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
+    {% if mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
+    <button type="submit" class="btn">検索</button>
+  </form> -->
+
+  <!-- <form method="get" style="display:flex;gap:8px;align-items:center;">
+    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
+    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
+    {% if mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
+    <select name="sort" onchange="this.form.submit()" style="width:auto;">
+      {% for key, opt in sort_options.items %}
+        <option value="{{ key }}" {% if key == current_sort %}selected{% endif %}>{{ opt.0 }}</option>
+      {% endfor %}
+    </select>
+  </form> -->
+<!-- </div> -->
+
+{% if logs %}
+  <div class="grid">
+    {% for log in logs %}
+      <article class="card">
+        <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not log.photo %}placeholder{% endif %}">
+          {% if log.photo %}
+            <img src="{{ log.photo.url }}" alt="{{ log.title }}">
+          {% else %}
+            <span>◒</span>
+          {% endif %}
+        </a>
+        <div class="card-body">
+          <div>
+            <h2 class="card-title"><a href="{% url 'divelogs:log_detail' log.pk %}">{{ log.location }}</a></h2>
+            <div class="card-site">
+              <span>Dive No.{{ log.calculated_dive_number }}</span><br>
+              <span>{{ log.dive_date }}</span>
+              <span>{{ log.dive_point_name }}</span>
+            </div>
+          </div>
+          <div class="card-metrics">
+            {% if log.dive_purpose %}<span><b>{{ log.get_dive_purpose_display }}</b></span>{% endif %}
+            {% if log.entry_way %}<span><b>{{ log.get_entry_way_display }}</b></span>{% endif %}
+            {% if log.duration_minutes %}<span><b>潜水時間: {{ log.duration_minutes }}</b><small>分</small></span>{% endif %}
+            {% if log.surf_temp %}<span><b>{{ log.surf_temp }}</b><small>℃</small></span>{% endif %}
+          </div> 
+        </div>
+        <div class="card-foot">
+          <span class="mono">{{ log.dive_date|date:"Y.m.d" }}</span>
+          {% if user.is_authenticated %}
+            <form method="post" action="" class="inline-form">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}">
+              <button type="submit" class="fav-btn {% if log.id in my_fav_ids %}on{% endif %}">
+                <!-- <span class="heart">{% if log.id in my_fav_ids %}♥{% else %}♡{% endif %}</span>{{ log.fav_total }} -->
+              </button>
+            </form>
+          {% else %}
+            <!-- <span class="fav-btn"><span class="heart">♡</span>{{ log.fav_total }}</span> -->
+          {% endif %}
+        </div>
+      </article>
+    {% endfor %}
+  </div>
+
+  {% if is_paginated %}
+    <div class="pagination">
+      {% if page_obj.has_previous %}
+        <a href="?{% if query %}q={{ query }}&{% endif %}sort={{ current_sort }}{% if fav_only %}&fav=1{% endif %}{% if mine_only %}&mine=1{% endif %}&page={{ page_obj.previous_page_number }}">← 前へ</a>
+      {% endif %}
+      <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+      {% if page_obj.has_next %}
+        <a href="?{% if query %}q={{ query }}&{% endif %}sort={{ current_sort }}{% if fav_only %}&fav=1{% endif %}{% if mine_only %}&mine=1{% endif %}&page={{ page_obj.next_page_number }}">次へ →</a>
+      {% endif %}
+    </div>
+  {% endif %}
+{% else %}
+  <div class="empty">
+    {% if query %}
+      「{{ query }}」に一致するダイブログは見つかりませんでした。
+    <!-- {% elif fav_only %}
+      お気に入りに登録したダイブログはまだありません。 -->
+    {% elif mine_only %}
+      まだダイブログを記録していません。
+    {% else %}
+      まだダイブログがありません。最初の 1 本を記録しましょう。
+    {% endif %}
+  </div>
+{% endif %}
+{% endblock %}
