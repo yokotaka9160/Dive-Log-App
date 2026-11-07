@@ -72,152 +72,159 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script>
-    (function () {
+    (function () {  // 変数がページ全体に漏れないよう、処理全体を関数で囲んですぐ実行する
+      // 月別・目的別グラフのデータを、json_script が出力した script タグから読み出す
       function readData(id) {
-        var el = document.getElementById(id);
-        if (!el) return null;
+        var el = document.getElementById(id);  // 指定した id の script タグを探す
+        if (!el) return null;  // タグがなければデータなしとする
         try {
-          var d = JSON.parse(el.textContent);
-          if (d && Array.isArray(d.labels) && Array.isArray(d.values) && d.labels.length) return d;
-        } catch (e) {}
-        return null;
+          var d = JSON.parse(el.textContent);  // タグの中身（JSON 文字列）を JavaScript のオブジェクトに変換する
+          if (d && Array.isArray(d.labels) && Array.isArray(d.values) && d.labels.length) return d;  // labels と values が配列で、1件以上あれば使う
+        } catch (e) {}  // JSON として読めなかった場合は何もしない
+        return null;  // 使えるデータがない場合は null を返す
       }
 
+      // データがないとき、グラフの代わりに「データがありません」を表示する
       function markEmpty(canvas) {
-        canvas.closest(".chart-box").classList.add("is-empty");
+        canvas.closest(".chart-box").classList.add("is-empty");  // 親の .chart-box に is-empty を付け、CSS で表示を切り替える
       }
 
-      var css = getComputedStyle(document.documentElement);
-      var accent = css.getPropertyValue("--accent").trim();
-      var accent2 = css.getPropertyValue("--accent-2").trim();
-      var muted = css.getPropertyValue("--muted").trim();
-      var border = css.getPropertyValue("--border").trim();
-      var surface = css.getPropertyValue("--surface").trim();
+      var css = getComputedStyle(document.documentElement);  // style.css で定義した CSS 変数を読むため、ページ全体のスタイルを取得する
+      var accent = css.getPropertyValue("--accent").trim();  // メインの色
+      var accent2 = css.getPropertyValue("--accent-2").trim();  // サブの色
+      var muted = css.getPropertyValue("--muted").trim();  // 薄い文字色
+      var border = css.getPropertyValue("--border").trim();  // 枠線・補助線の色
+      var surface = css.getPropertyValue("--surface").trim();  // カードの背景色
 
+      // グラフを1つ描く共通処理（canvas の id、データの id、グラフ設定を作る関数を受け取る）
       function draw(canvasId, dataId, build) {
-        var canvas = document.getElementById(canvasId);
-        var data = readData(dataId);
-        if (!data || typeof Chart === "undefined") {
-          markEmpty(canvas);
-          return;
+        var canvas = document.getElementById(canvasId);  // グラフを描く canvas を取得する
+        var data = readData(dataId);  // グラフのデータを読み出す
+        if (!data || typeof Chart === "undefined") {  // データがない、または Chart.js が読み込めなかった場合は
+          markEmpty(canvas);  // 「データがありません」を表示して
+          return;  // 描画しない
         }
-        new Chart(canvas, build(data));
+        new Chart(canvas, build(data));  // build() が返した設定でグラフを描く
       }
 
-      if (typeof Chart !== "undefined") {
-        Chart.defaults.color = muted;
-        Chart.defaults.borderColor = border;
-        Chart.defaults.font.family = '"Noto Sans JP", system-ui, sans-serif';
-        Chart.defaults.maintainAspectRatio = false;
+      if (typeof Chart !== "undefined") {  // Chart.js が読み込めている場合だけ、全グラフ共通の見た目を設定する
+        Chart.defaults.color = muted;  // 文字の色
+        Chart.defaults.borderColor = border;  // 軸・補助線の色
+        Chart.defaults.font.family = '"Noto Sans JP", system-ui, sans-serif';  // フォント
+        Chart.defaults.maintainAspectRatio = false;  // 縦横比を固定せず、.chart-canvas の高さに合わせる
       }
 
+      // 月別潜水本数（棒グラフ）
       draw("monthly-chart", "monthly-data", function (d) {
         return {
-          type: "bar",
-          data: { labels: d.labels, datasets: [{ label: "本数", data: d.values, backgroundColor: accent, borderRadius: 6 }] },
-          options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+          type: "bar",  // 棒グラフ
+          data: { labels: d.labels, datasets: [{ label: "本数", data: d.values, backgroundColor: accent, borderRadius: 6 }] },  // 横軸 = 月、棒の高さ = 本数
+          options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }  // 凡例は非表示、縦軸は0から始めて整数だけ表示する
         };
       });
 
+      // ダイブ目的の内訳（ドーナツグラフ）
       draw("purpose-chart", "purpose-data", function (d) {
         return {
-          type: "doughnut",
-          data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: [accent, accent2, "#f7b955", "#a78bfa"], borderColor: surface, borderWidth: 2 }] },
-          options: { plugins: { legend: { position: "bottom" } } }
+          type: "doughnut",  // ドーナツ型の円グラフ
+          data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: [accent, accent2, "#f7b955", "#a78bfa"], borderColor: surface, borderWidth: 2 }] },  // 目的ごとの本数を色分けし、背景色の線で区切る
+          options: { plugins: { legend: { position: "bottom" } } }  // 凡例をグラフの下に表示する
         };
       });
 
       // 推移グラフ: 単位が違う5項目を1つのグラフに重ね、単位ごとに縦軸を分ける
       (function () {
-        var canvas = document.getElementById("trend-chart");
-        var el = document.getElementById("trend-data");
-        var d = null;
-        try { d = el ? JSON.parse(el.textContent) : null; } catch (e) {}
-        if (!d || !Array.isArray(d.labels) || !d.labels.length || typeof Chart === "undefined") {
-          markEmpty(canvas);
-          return;
+        var canvas = document.getElementById("trend-chart");  // 推移グラフを描く canvas を取得する
+        var el = document.getElementById("trend-data");  // json_script が出力したデータのタグを取得する
+        var d = null;  // 読み出したデータを入れる変数
+        try { d = el ? JSON.parse(el.textContent) : null; } catch (e) {}  // タグがあれば JSON を読み出す（失敗したら null のまま）
+        if (!d || !Array.isArray(d.labels) || !d.labels.length || typeof Chart === "undefined") {  // データがない、または Chart.js がない場合は
+          markEmpty(canvas);  // 「データがありません」を表示して
+          return;  // 描画しない
         }
 
+        // 折れ線1本分の設定を作る（表示名、値、色、使う縦軸、単位、点線にするか）
         function line(label, data, color, axis, unit, dashed) {
           return {
-            type: "line", label: label, data: data, yAxisID: axis, unit: unit,
-            borderColor: color, backgroundColor: color, borderDash: dashed ? [6, 4] : [],
-            tension: 0.3, pointRadius: 3, spanGaps: true
+            type: "line", label: label, data: data, yAxisID: axis, unit: unit,  // 折れ線グラフ。yAxisID で、どの縦軸の目盛りを使うかを決める。unit はツールチップ用の独自項目
+            borderColor: color, backgroundColor: color, borderDash: dashed ? [6, 4] : [],  // 線と点の色。dashed が true なら 6px 線・4px 空白の点線にする
+            tension: 0.3, pointRadius: 3, spanGaps: true  // 線を少し曲線にし、点の大きさを3にし、値がない回は前後をつないで描く
           };
         }
 
+        // 縦軸1本分の設定を作る（表示する側、軸のタイトル、補助線を引くか）
         function axis(position, title, showGrid) {
           return {
-            type: "linear", position: position,
-            title: { display: true, text: title },
-            grid: { drawOnChartArea: showGrid }
+            type: "linear", position: position,  // 数値の軸。position が "left" なら左、"right" なら右に表示する
+            title: { display: true, text: title },  // 軸のタイトル（単位）を表示する
+            grid: { drawOnChartArea: showGrid }  // グラフの中に横の補助線を引くかどうか
           };
         }
 
-        new Chart(canvas, {
+        new Chart(canvas, {  // 推移グラフを描く（棒と折れ線を混ぜるので、type は各データ側で指定する）
           data: {
-            labels: d.labels,
-            datasets: [
+            labels: d.labels,  // 横軸のラベル（1本目, 2本目, …）
+            datasets: [  // グラフに描く項目の一覧
               {
-                type: "bar", label: "タンク残圧（開始時−終了時）", data: d.pressure_used,
-                yAxisID: "yPress", unit: "", backgroundColor: "rgba(247, 185, 85, 0.35)", borderRadius: 4, order: 10
+                type: "bar", label: "タンク残圧（開始時−終了時）", data: d.pressure_used,  // 棒グラフ: タンク残圧
+                yAxisID: "yPress", unit: "", backgroundColor: "rgba(247, 185, 85, 0.35)", borderRadius: 4, order: 10  // 左の yPress 軸を使う。半透明の色にし、order を大きくして折れ線の後ろに描く
               },
-              line("最大深度", d.max_depth, accent2, "yDepth", "m", false),
-              line("平均深度", d.ave_depth, accent2, "yDepth", "m", true),
-              line("潜水時間", d.duration, accent, "yTime", "分", false),
-              line("水底温度", d.bottom_temp, "#ff8a80", "yTemp", "℃", false)
+              line("最大深度", d.max_depth, accent2, "yDepth", "m", false),  // 折れ線: 最大深度（実線）
+              line("平均深度", d.ave_depth, accent2, "yDepth", "m", true),  // 折れ線: 平均深度（点線。最大深度と同じ色・同じ軸）
+              line("潜水時間", d.duration, accent, "yTime", "分", false),  // 折れ線: 潜水時間
+              line("水底温度", d.bottom_temp, "#ff8a80", "yTemp", "℃", false)  // 折れ線: 水底温度
             ]
           },
           options: {
-            interaction: { mode: "index", intersect: false },
+            interaction: { mode: "index", intersect: false },  // マウスを乗せた回（n本目）の全項目をまとめてツールチップに出す。点の真上でなくても反応する
             plugins: {
               legend: {
-                position: "bottom",
+                position: "bottom",  // 凡例をグラフの下に表示する
                 labels: {
                   // 凡例の印を、折れ線は線（平均深度は点線）、棒グラフは四角で表示する
-                  usePointStyle: true,
-                  pointStyleWidth: 32,
-                  generateLabels: function (chart) {
-                    var items = Chart.defaults.plugins.legend.labels.generateLabels(chart);
-                    items.forEach(function (item) {
-                      var ds = chart.data.datasets[item.datasetIndex];
-                      if (ds.type === "line") {
-                        item.pointStyle = "line";
-                        item.lineWidth = 3;
-                        item.lineDash = ds.borderDash || [];
-                      } else {
-                        item.pointStyle = "rect";
+                  usePointStyle: true,  // 凡例の印を、標準の四角ではなく pointStyle で指定した形にする
+                  pointStyleWidth: 32,  // 印の横幅（線が見えるように広めにする）
+                  generateLabels: function (chart) {  // 凡例の項目を作る処理を上書きする
+                    var items = Chart.defaults.plugins.legend.labels.generateLabels(chart);  // まず Chart.js 標準の凡例項目を作る
+                    items.forEach(function (item) {  // 凡例の項目を1つずつ調整する
+                      var ds = chart.data.datasets[item.datasetIndex];  // その凡例に対応するデータ（datasets の1件）
+                      if (ds.type === "line") {  // 折れ線の場合は
+                        item.pointStyle = "line";  // 印を線にする
+                        item.lineWidth = 3;  // 線の太さ
+                        item.lineDash = ds.borderDash || [];  // グラフと同じ点線の設定にする（平均深度だけ点線になる）
+                      } else {  // 棒グラフの場合は
+                        item.pointStyle = "rect";  // 印を四角にする
                       }
                     });
-                    return items;
+                    return items;  // 調整した凡例項目を返す
                   }
                 }
               },
               tooltip: {
                 callbacks: {
-                  title: function (items) {
-                    var i = items[0].dataIndex;
-                    return d.labels[i] + "（" + d.dates[i] + "）";
+                  title: function (items) {  // ツールチップの見出し
+                    var i = items[0].dataIndex;  // 何番目の回か（0始まり）
+                    return d.labels[i] + "（" + d.dates[i] + "）";  // 例: 「2本目（2026/11/03）」
                   },
-                  label: function (ctx) {
-                    var v = ctx.parsed.y;
-                    if (v === null || v === undefined) return ctx.dataset.label + ": —";
-                    return ctx.dataset.label + ": " + v + (ctx.dataset.unit || "");
+                  label: function (ctx) {  // ツールチップの各行
+                    var v = ctx.parsed.y;  // その項目の値
+                    if (v === null || v === undefined) return ctx.dataset.label + ": —";  // 値がない場合は「—」を表示する
+                    return ctx.dataset.label + ": " + v + (ctx.dataset.unit || "");  // 例: 「最大深度: 16m」
                   }
                 }
               }
             },
-            scales: {
+            scales: {  // 縦軸の設定。キー名（yPress など）が、datasets の yAxisID と対応する
               // 左側: タンク残圧（横の補助線もこの軸に合わせる） / 右側: 深度・水温・潜水時間
-              yPress: Object.assign(axis("left", "タンク残圧", true), { min: 0, max: 200 }),
-              yDepth: Object.assign(axis("right", "深度 (m)", false), { reverse: true, beginAtZero: true }),
-              yTemp: axis("right", "水温 (℃)", false),
-              yTime: Object.assign(axis("right", "潜水時間 (分)", false), { beginAtZero: true })
+              yPress: Object.assign(axis("left", "タンク残圧", true), { min: 0, max: 200 }),  // 左側・補助線あり。目盛りを0〜200に固定する
+              yDepth: Object.assign(axis("right", "深度 (m)", false), { reverse: true, beginAtZero: true }),  // 右側。上を0にして、深いほど下に描く
+              yTemp: axis("right", "水温 (℃)", false),  // 右側。目盛りの範囲は値に合わせて自動で決める
+              yTime: Object.assign(axis("right", "潜水時間 (分)", false), { beginAtZero: true })  // 右側。目盛りを0から始める
             }
           }
         });
-      })();
-    })();
+      })();  // 推移グラフの関数をすぐ実行する
+    })();  // 全体の関数をすぐ実行する
   </script>
 {% else %}
   <div class="empty">

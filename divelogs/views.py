@@ -193,54 +193,54 @@ def signup(request):
         form = SignUpForm()
     return render(request, "registration/register.html", {"form": form})
 
-class DashboardView(LoginRequiredMixin, TemplateView):
-    template_name = "logs/dashboard.html"
+class DashboardView(LoginRequiredMixin, TemplateView):  # ログイン必須の、テンプレートを表示するだけのビュー
+    template_name = "logs/dashboard.html"  # 表示に使うテンプレート
 
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        logs = DiveLog.objects.filter(user=self.request.user)
+    def get_context_data(self, **kwargs):  # テンプレートに渡す値（context）を用意するメソッド
+        context = super().get_context_data(**kwargs)  # 親クラスが用意する標準の context を受け取る
+        logs = DiveLog.objects.filter(user=self.request.user)  # ログイン中のユーザーのログだけに絞り込む（この時点ではまだ DB にアクセスしない）
 
         # 推移グラフは潜った順（エントリー日時の古い順）に並べる
-        ordered = list(logs.order_by("entry_date", "id"))
-        context["total_logs"] = len(ordered)
-        if not ordered:
-            return context
+        ordered = list(logs.order_by("entry_date", "id"))  # エントリー日時→ID の順に並べ、list() で DB から全件取得する
+        context["total_logs"] = len(ordered)  # 通算本数 = 取得した件数
+        if not ordered:  # ログが1件もない場合は
+            return context  # 集計をせずに終了する（テンプレート側で「まだログがありません」を表示）
 
         # --- 数値サマリー ---
-        durations = [log.duration_minutes for log in ordered if log.duration_minutes is not None]
-        context["total_minutes"] = sum(durations)
-        stats = logs.aggregate(max_depth=Max("max_depth"), max_ave_depth=Max("ave_depth"))
-        context["max_depth"] = stats["max_depth"]
-        context["max_ave_depth"] = stats["max_ave_depth"]
+        durations = [log.duration_minutes for log in ordered if log.duration_minutes is not None]  # 1本ごとの潜水時間（分）を集める。計算できないログは除く
+        context["total_minutes"] = sum(durations)  # 合計潜水時間 = 潜水時間の合計
+        stats = logs.aggregate(max_depth=Max("max_depth"), max_ave_depth=Max("ave_depth"))  # DB 側で最大深度・平均深度それぞれの最大値を求める
+        context["max_depth"] = stats["max_depth"]  # 過去最大深度
+        context["max_ave_depth"] = stats["max_ave_depth"]  # 過去最大平均深度
 
         # --- 月別潜水本数 ---
         monthly = (
-            logs.annotate(month=TruncMonth("dive_date"))
-            .values("month")
-            .annotate(count=Count("id"))
-            .order_by("month")
+            logs.annotate(month=TruncMonth("dive_date"))  # 潜水日を「月の初日」に切り捨てた値を month として付ける
+            .values("month")  # month ごとにグループ化する
+            .annotate(count=Count("id"))  # グループごとの件数を count として数える
+            .order_by("month")  # 月の古い順に並べる
         )
-        context["monthly_chart"] = {
-            "labels": [row["month"].strftime("%Y/%m") for row in monthly],
-            "values": [row["count"] for row in monthly],
+        context["monthly_chart"] = {  # 月別グラフ用のデータ
+            "labels": [row["month"].strftime("%Y/%m") for row in monthly],  # 横軸のラベル（例: 2026/11）
+            "values": [row["count"] for row in monthly],  # 棒の高さ（その月の本数）
         }
 
         # --- ダイブ目的の内訳（DB の値ではなく画面表示用のラベルにする） ---
-        purpose_labels = dict(DiveLog.DivePurpose.choices)
-        purposes = logs.values("dive_purpose").annotate(count=Count("id")).order_by("-count")
-        context["purpose_chart"] = {
-            "labels": [str(purpose_labels.get(row["dive_purpose"], row["dive_purpose"])) for row in purposes],
-            "values": [row["count"] for row in purposes],
+        purpose_labels = dict(DiveLog.DivePurpose.choices)  # 選択肢を {DB の値: 表示名} の辞書にする
+        purposes = logs.values("dive_purpose").annotate(count=Count("id")).order_by("-count")  # 目的ごとの件数を数え、多い順に並べる
+        context["purpose_chart"] = {  # 円グラフ用のデータ
+            "labels": [str(purpose_labels.get(row["dive_purpose"], row["dive_purpose"])) for row in purposes],  # 目的の表示名（辞書にない値はそのまま表示）
+            "values": [row["count"] for row in purposes],  # 目的ごとの本数
         }
 
         # --- 推移グラフ（1本ごと） ---
-        context["trend_chart"] = {
-            "labels": [f"{i}本目" for i in range(1, len(ordered) + 1)],
-            "dates": [log.dive_date.strftime("%Y/%m/%d") for log in ordered],
-            "pressure_used": [log.start_press - log.end_press for log in ordered],
-            "max_depth": [log.max_depth for log in ordered],
-            "ave_depth": [log.ave_depth for log in ordered],
-            "duration": [log.duration_minutes for log in ordered],
-            "bottom_temp": [log.w_bottom_temp for log in ordered],
+        context["trend_chart"] = {  # 推移グラフ用のデータ（どのリストも ordered と同じ順番・同じ件数）
+            "labels": [f"{i}本目" for i in range(1, len(ordered) + 1)],  # 横軸のラベル（1本目, 2本目, …）
+            "dates": [log.dive_date.strftime("%Y/%m/%d") for log in ordered],  # ツールチップに出す潜水日
+            "pressure_used": [log.start_press - log.end_press for log in ordered],  # 棒グラフ: タンク残圧（開始時−終了時）
+            "max_depth": [log.max_depth for log in ordered],  # 折れ線: 最大深度
+            "ave_depth": [log.ave_depth for log in ordered],  # 折れ線: 平均深度
+            "duration": [log.duration_minutes for log in ordered],  # 折れ線: 潜水時間（分）
+            "bottom_temp": [log.w_bottom_temp for log in ordered],  # 折れ線: 水底温度
         }
-        return context
+        return context  # 用意した context をテンプレートに渡す
