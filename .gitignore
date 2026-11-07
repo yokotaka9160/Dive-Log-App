@@ -7,3 +7,5 @@ __pycache__/
 
 # その他Docker関連
 *.log
+
+staticfiles/
