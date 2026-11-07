@@ -85,6 +85,10 @@
 </div>
 <div class="readout" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 20px;">
   <div class="cell">
+    <div class="label">潜水時間</div>
+    <div class="value">{{ log.duration_minutes|default:"—" }}<span class="unit">分</span></div>
+  </div>
+  <div class="cell">
     <div class="label">{{ form.tank_type.label }}</div>
     <div class="value">{{ log.get_tank_type_display|default:log.tank_type|default:"—" }}</div>
   </div>
@@ -105,12 +109,8 @@
     <div class="value">{{ log.get_current_str_display|default:log.current_str|default:"—" }}</div>
   </div>
   <div class="cell">
-    <div class="label">{{ form.transparency.label }}</div>
-    <div class="value">{{ log.transparency|default:"—" }}<span class="unit">m</span></div>
-  </div>
-  <div class="cell">
-    <div class="label">潜水時間</div>
-    <div class="value">{{ log.duration_minutes|default:"—" }}<span class="unit">分</span></div>
+    <div class="label">{{ form.wind_speed.label }}</div>
+    <div class="value">{{ log.get_wind_speed_display|default:log.current_str|default:"—" }}</div>
   </div>
   <div class="cell">
     <div class="label">{{ form.transparency.label }}</div>
@@ -141,16 +141,30 @@
     <div class="value">{{ log.w_bottom_temp|default:"—" }}<span class="unit">℃</span></div>
   </div>
   <div class="cell">
-    <div class="label">{{ form.tank_type.label }}</div>
-    <div class="value">{{ log.get_tank_type_display|default:log.tank_type|default:"—" }}</div>
+    <div class="label">{{ form.weather.label }}</div>
+    <div class="value">{{ log.get_weather_display|default:log.weather|default:"—" }}</div>
   </div>
   <div class="cell">
-    <div class="label">{{ form.weight.label }}</div>
-    <div class="value">{{ log.weight|default:"—" }}<span class="unit">kg</span></div>
+    <div class="label">{{ form.suit_type.label }}</div>
+    <div class="value">{{ log.get_suit_type_display|default:log.suit_type|default:"—" }}</div>
+  </div>
+</div>
+
+<div class="readout" style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 20px;">
+  <div class="cell">
+    <div class="label">{{ form.free_text_field.label }}</div>
+    <div class="value">{{ log.free_text_field|default:"—" }}</div>
+  </div>
+</div>
+
+<div class="readout" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px;">
+  <div class="cell">
+    <div class="label">{{ form.buddy_name.label }}</div>
+    <div class="value">{{ log.buddy_name|default:"—" }}</div>
   </div>
   <div class="cell">
-    <div class="label">{{ form.current_str.label }}</div>
-    <div class="value">{{ log.get_current_str_display|default:log.current_str|default:"—" }}</div>
+    <div class="label">{{ form.inst_name.label }}</div>
+    <div class="value">{{ log.inst_name|default:"—" }}</div>
   </div>
 </div>
 

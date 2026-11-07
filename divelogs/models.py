@@ -41,6 +41,13 @@ class DiveLog(models.Model):
         MIDDLE = 'middle', _('中')
         HIGH = 'high', _('強')
 
+    class SuitType(models.TextChoices):
+        WET5mmU = 'wet5mmUnder', _('ウェットスーツ: 5mm以下')
+        WET5mm = 'wet5mm', _('ウェットスーツ: 5mm')
+        WET65mm = 'wet65mm', _('ウェットスーツ: 6.5mm')
+        DRY = 'dry', _('ドライスーツ')
+
+
     user = models.ForeignKey( #「1人のUserが、複数のArticleを投稿できる」という関係の定義
         User, #ForeignKeyの第一引数 で、「どのモデルを参照するか」
         on_delete=models.CASCADE, #参照先( User )のレコードが削除されたときの挙動を指定(親が消えたら子も連動して削除する)
@@ -151,6 +158,13 @@ class DiveLog(models.Model):
     )
     transparency = models.IntegerField(
         verbose_name=_("透明度")
+    )
+    suit_type = models.CharField(
+        max_length=20,
+        choices=SuitType.choices,
+        blank=True,
+        default='',
+        verbose_name=_("スーツ種別")
     )
     buddy_name = models.CharField(
         max_length=100,

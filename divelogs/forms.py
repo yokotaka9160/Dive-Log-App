@@ -45,6 +45,7 @@ class DiveLogForm(forms.ModelForm):
             "inst_name",
             "fish",
             "free_text_field",
+            "suit_type",
         ]
         widgets = {
             "dive_date": forms.DateInput(attrs={"type": "date"}),

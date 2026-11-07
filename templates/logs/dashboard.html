@@ -1,0 +1,230 @@
+{% extends "base.html" %}
+{% block title %}潜水ログ可視化ダッシュボード{% endblock %}
+
+{% block content %}
+<style>
+  .dash-kpis { grid-template-columns: repeat(4, 1fr); }
+  @media (max-width: 720px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } }
+  .dash-charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  .dash-charts .wide { grid-column: 1 / -1; }
+  @media (max-width: 720px) { .dash-charts { grid-template-columns: 1fr; } }
+  .chart-title { font-size: 15px; margin: 0 0 12px; }
+  .chart-canvas { position: relative; height: 260px; }
+  .chart-canvas.trend { height: 420px; }
+  @media (max-width: 720px) { .chart-canvas.trend { height: 360px; } }
+  .chart-note { color: var(--muted); font-size: 12px; margin: -6px 0 12px; }
+  .chart-empty { display: none; color: var(--muted); font-size: 14px; text-align: center; padding: 96px 0; margin: 0; }
+  .chart-box.is-empty .chart-canvas { display: none; }
+  .chart-box.is-empty .chart-empty { display: block; }
+</style>
+
+<div class="page-head">
+  <div>
+    <p class="eyebrow">Dashboard</p>
+    <h1 class="page-title">潜水ログ可視化ダッシュボード</h1>
+    <p class="page-sub">{{ user.username }} さんのダイブログの分析</p>
+  </div>
+  <a href="{% url 'accounts:profile' %}" class="btn btn-ghost btn-sm">← 個人ページへ</a>
+</div>
+
+{% if total_logs %}
+  <div class="readout dash-kpis">
+    <div class="cell">
+      <div class="label">通算本数</div>
+      <div class="value">{{ total_logs }}<span class="unit">本</span></div>
+    </div>
+    <div class="cell">
+      <div class="label">合計潜水時間</div>
+      <div class="value">{{ total_minutes|default:"—" }}<span class="unit">分</span></div>
+    </div>
+    <div class="cell">
+      <div class="label">過去最大深度</div>
+      <div class="value">{{ max_depth|floatformat:1|default:"—" }}<span class="unit">m</span></div>
+    </div>
+    <div class="cell">
+      <div class="label">過去最大平均深度</div>
+      <div class="value">{{ max_ave_depth|floatformat:1|default:"—" }}<span class="unit">m</span></div>
+    </div>
+  </div>
+
+  <div class="dash-charts">
+    <section class="card-panel chart-box">
+      <h2 class="chart-title">月別潜水本数</h2>
+      <div class="chart-canvas"><canvas id="monthly-chart" aria-label="月別潜水本数"></canvas></div>
+      <p class="chart-empty">データがありません</p>
+    </section>
+    <section class="card-panel chart-box">
+      <h2 class="chart-title">ダイブ目的の内訳</h2>
+      <div class="chart-canvas"><canvas id="purpose-chart" aria-label="ダイブ目的の内訳"></canvas></div>
+      <p class="chart-empty">データがありません</p>
+    </section>
+    <section class="card-panel chart-box wide">
+      <h2 class="chart-title">推移グラフ</h2>
+      <p class="chart-note">凡例をクリックすると、項目ごとに表示・非表示を切り替えられます。</p>
+      <div class="chart-canvas trend"><canvas id="trend-chart" aria-label="タンク残圧・深度・潜水時間・水底温度の推移"></canvas></div>
+      <p class="chart-empty">データがありません</p>
+    </section>
+  </div>
+
+  {{ monthly_chart|json_script:"monthly-data" }}
+  {{ purpose_chart|json_script:"purpose-data" }}
+  {{ trend_chart|json_script:"trend-data" }}
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    (function () {
+      function readData(id) {
+        var el = document.getElementById(id);
+        if (!el) return null;
+        try {
+          var d = JSON.parse(el.textContent);
+          if (d && Array.isArray(d.labels) && Array.isArray(d.values) && d.labels.length) return d;
+        } catch (e) {}
+        return null;
+      }
+
+      function markEmpty(canvas) {
+        canvas.closest(".chart-box").classList.add("is-empty");
+      }
+
+      var css = getComputedStyle(document.documentElement);
+      var accent = css.getPropertyValue("--accent").trim();
+      var accent2 = css.getPropertyValue("--accent-2").trim();
+      var muted = css.getPropertyValue("--muted").trim();
+      var border = css.getPropertyValue("--border").trim();
+      var surface = css.getPropertyValue("--surface").trim();
+
+      function draw(canvasId, dataId, build) {
+        var canvas = document.getElementById(canvasId);
+        var data = readData(dataId);
+        if (!data || typeof Chart === "undefined") {
+          markEmpty(canvas);
+          return;
+        }
+        new Chart(canvas, build(data));
+      }
+
+      if (typeof Chart !== "undefined") {
+        Chart.defaults.color = muted;
+        Chart.defaults.borderColor = border;
+        Chart.defaults.font.family = '"Noto Sans JP", system-ui, sans-serif';
+        Chart.defaults.maintainAspectRatio = false;
+      }
+
+      draw("monthly-chart", "monthly-data", function (d) {
+        return {
+          type: "bar",
+          data: { labels: d.labels, datasets: [{ label: "本数", data: d.values, backgroundColor: accent, borderRadius: 6 }] },
+          options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }
+        };
+      });
+
+      draw("purpose-chart", "purpose-data", function (d) {
+        return {
+          type: "doughnut",
+          data: { labels: d.labels, datasets: [{ data: d.values, backgroundColor: [accent, accent2, "#f7b955", "#a78bfa"], borderColor: surface, borderWidth: 2 }] },
+          options: { plugins: { legend: { position: "bottom" } } }
+        };
+      });
+
+      // 推移グラフ: 単位が違う5項目を1つのグラフに重ね、単位ごとに縦軸を分ける
+      (function () {
+        var canvas = document.getElementById("trend-chart");
+        var el = document.getElementById("trend-data");
+        var d = null;
+        try { d = el ? JSON.parse(el.textContent) : null; } catch (e) {}
+        if (!d || !Array.isArray(d.labels) || !d.labels.length || typeof Chart === "undefined") {
+          markEmpty(canvas);
+          return;
+        }
+
+        function line(label, data, color, axis, unit, dashed) {
+          return {
+            type: "line", label: label, data: data, yAxisID: axis, unit: unit,
+            borderColor: color, backgroundColor: color, borderDash: dashed ? [6, 4] : [],
+            tension: 0.3, pointRadius: 3, spanGaps: true
+          };
+        }
+
+        function axis(position, title, showGrid) {
+          return {
+            type: "linear", position: position,
+            title: { display: true, text: title },
+            grid: { drawOnChartArea: showGrid }
+          };
+        }
+
+        new Chart(canvas, {
+          data: {
+            labels: d.labels,
+            datasets: [
+              {
+                type: "bar", label: "タンク残圧（開始時−終了時）", data: d.pressure_used,
+                yAxisID: "yPress", unit: "", backgroundColor: "rgba(247, 185, 85, 0.35)", borderRadius: 4, order: 10
+              },
+              line("最大深度", d.max_depth, accent2, "yDepth", "m", false),
+              line("平均深度", d.ave_depth, accent2, "yDepth", "m", true),
+              line("潜水時間", d.duration, accent, "yTime", "分", false),
+              line("水底温度", d.bottom_temp, "#ff8a80", "yTemp", "℃", false)
+            ]
+          },
+          options: {
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: {
+                position: "bottom",
+                labels: {
+                  // 凡例の印を、折れ線は線（平均深度は点線）、棒グラフは四角で表示する
+                  usePointStyle: true,
+                  pointStyleWidth: 32,
+                  generateLabels: function (chart) {
+                    var items = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+                    items.forEach(function (item) {
+                      var ds = chart.data.datasets[item.datasetIndex];
+                      if (ds.type === "line") {
+                        item.pointStyle = "line";
+                        item.lineWidth = 3;
+                        item.lineDash = ds.borderDash || [];
+                      } else {
+                        item.pointStyle = "rect";
+                      }
+                    });
+                    return items;
+                  }
+                }
+              },
+              tooltip: {
+                callbacks: {
+                  title: function (items) {
+                    var i = items[0].dataIndex;
+                    return d.labels[i] + "（" + d.dates[i] + "）";
+                  },
+                  label: function (ctx) {
+                    var v = ctx.parsed.y;
+                    if (v === null || v === undefined) return ctx.dataset.label + ": —";
+                    return ctx.dataset.label + ": " + v + (ctx.dataset.unit || "");
+                  }
+                }
+              }
+            },
+            scales: {
+              // 左側: タンク残圧（横の補助線もこの軸に合わせる） / 右側: 深度・水温・潜水時間
+              yPress: Object.assign(axis("left", "タンク残圧", true), { min: 0, max: 200 }),
+              yDepth: Object.assign(axis("right", "深度 (m)", false), { reverse: true, beginAtZero: true }),
+              yTemp: axis("right", "水温 (℃)", false),
+              yTime: Object.assign(axis("right", "潜水時間 (分)", false), { beginAtZero: true })
+            }
+          }
+        });
+      })();
+    })();
+  </script>
+{% else %}
+  <div class="empty">
+    まだダイブログがありません。記録すると、ここに分析結果が表示されます。
+    <div style="margin-top:20px;">
+      <a href="{% url 'divelogs:log_create' %}" class="btn btn-accent">＋ 新しいダイブログ</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}

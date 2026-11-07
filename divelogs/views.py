@@ -2,7 +2,8 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Count, Q
+from django.db.models import Count, Max, Q
+from django.db.models.functions import TruncMonth
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse_lazy
@@ -12,6 +13,7 @@ from django.views.generic import (
     DetailView,
     ListView,
     UpdateView,
+    TemplateView,
 )
 
 from .forms import DiveLogForm, SignUpForm
@@ -30,7 +32,7 @@ SORT_OPTIONS = {
 def landing(request):
     """ログイン/サインアップのみを選べるトップページ。"""
     if request.user.is_authenticated:
-        return redirect("log_list")
+        return redirect("divelogs:log_list")
     return render(request, "logs/landing.html")
 
 
@@ -190,3 +192,55 @@ def signup(request):
     else:
         form = SignUpForm()
     return render(request, "registration/register.html", {"form": form})
+
+class DashboardView(LoginRequiredMixin, TemplateView):
+    template_name = "logs/dashboard.html"
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        logs = DiveLog.objects.filter(user=self.request.user)
+
+        # 推移グラフは潜った順（エントリー日時の古い順）に並べる
+        ordered = list(logs.order_by("entry_date", "id"))
+        context["total_logs"] = len(ordered)
+        if not ordered:
+            return context
+
+        # --- 数値サマリー ---
+        durations = [log.duration_minutes for log in ordered if log.duration_minutes is not None]
+        context["total_minutes"] = sum(durations)
+        stats = logs.aggregate(max_depth=Max("max_depth"), max_ave_depth=Max("ave_depth"))
+        context["max_depth"] = stats["max_depth"]
+        context["max_ave_depth"] = stats["max_ave_depth"]
+
+        # --- 月別潜水本数 ---
+        monthly = (
+            logs.annotate(month=TruncMonth("dive_date"))
+            .values("month")
+            .annotate(count=Count("id"))
+            .order_by("month")
+        )
+        context["monthly_chart"] = {
+            "labels": [row["month"].strftime("%Y/%m") for row in monthly],
+            "values": [row["count"] for row in monthly],
+        }
+
+        # --- ダイブ目的の内訳（DB の値ではなく画面表示用のラベルにする） ---
+        purpose_labels = dict(DiveLog.DivePurpose.choices)
+        purposes = logs.values("dive_purpose").annotate(count=Count("id")).order_by("-count")
+        context["purpose_chart"] = {
+            "labels": [str(purpose_labels.get(row["dive_purpose"], row["dive_purpose"])) for row in purposes],
+            "values": [row["count"] for row in purposes],
+        }
+
+        # --- 推移グラフ（1本ごと） ---
+        context["trend_chart"] = {
+            "labels": [f"{i}本目" for i in range(1, len(ordered) + 1)],
+            "dates": [log.dive_date.strftime("%Y/%m/%d") for log in ordered],
+            "pressure_used": [log.start_press - log.end_press for log in ordered],
+            "max_depth": [log.max_depth for log in ordered],
+            "ave_depth": [log.ave_depth for log in ordered],
+            "duration": [log.duration_minutes for log in ordered],
+            "bottom_temp": [log.w_bottom_temp for log in ordered],
+        }
+        return context

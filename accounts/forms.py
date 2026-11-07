@@ -44,3 +44,12 @@ class EmailAuthenticationForm(AuthenticationForm):
         label='パスワード',
         widget=forms.PasswordInput(attrs={'autocomplete': 'current-password'}),
     )
+
+class ProfileUpdateForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ('username', 'email')
+        labels = {
+            'username': _('ユーザー名'),
+            'email': _('メールアドレス'),
+        }

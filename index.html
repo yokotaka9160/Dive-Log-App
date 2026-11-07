@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>yokotaka9160 Portfolio</title>
+<meta name="description" content="yokotaka9160 が開発したアプリのポートフォリオ。デモをすぐに起動できます。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --surface: #ffffff;
+    --text: #1d1d1f;
+    --muted: #5f6368;
+    --border: #e3e3df;
+    --accent: #1f6feb;
+    --accent-text: #ffffff;
+    --tag-bg: #eef2f7;
+    --tag-text: #334155;
+    --ok: #1a7f37;
+    --wip: #9a6700;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1115;
+      --surface: #171a21;
+      --text: #e8eaed;
+      --muted: #a0a6b0;
+      --border: #2a2f3a;
+      --accent: #4c8dff;
+      --accent-text: #0f1115;
+      --tag-bg: #232834;
+      --tag-text: #c9d1dc;
+      --ok: #3fb950;
+      --wip: #d29922;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Noto Sans JP", system-ui, sans-serif;
+    line-height: 1.7;
+  }
+  a { color: var(--accent); }
+  .wrap { max-width: 1040px; margin: 0 auto; padding: 0 16px; }
+
+  header { padding: 72px 0 40px; }
+  header h1 { font-size: clamp(28px, 5vw, 40px); margin: 0 0 4px; letter-spacing: .01em; }
+  header .role { color: var(--muted); font-size: 17px; margin: 0 0 20px; }
+  header .intro { max-width: 640px; margin: 0 0 24px; }
+  .links { display: flex; gap: 12px; flex-wrap: wrap; }
+  .links a {
+    text-decoration: none; padding: 8px 16px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text); background: var(--surface); font-size: 14px;
+  }
+  .links a:hover { border-color: var(--accent); }
+
+  section { padding: 32px 0; }
+  h2 { font-size: 22px; margin: 0 0 20px; }
+  h2 small { font-weight: 400; color: var(--muted); font-size: 14px; margin-left: 8px; }
+
+  .grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    overflow: hidden; display: flex; flex-direction: column;
+  }
+  .card.featured { grid-column: 1 / -1; }
+  @media (min-width: 760px) {
+    .card.featured { flex-direction: row; }
+    .card.featured .thumb { flex: 0 0 46%; aspect-ratio: auto; min-height: 280px; }
+  }
+  .thumb {
+    aspect-ratio: 16 / 9; background: var(--tag-bg); display: grid; place-items: center;
+    color: var(--muted); font-size: 13px; border-bottom: 1px solid var(--border);
+  }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb .ph { font-size: 40px; line-height: 1; }
+  .body { padding: 20px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+  .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .card h3 { margin: 0; font-size: 18px; }
+  .status { font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; }
+  .status.live { color: var(--ok); }
+  .status.wip { color: var(--wip); }
+  .status.archive { color: var(--muted); }
+  .summary { margin: 0; }
+  .points { margin: 0; padding-left: 1.2em; color: var(--muted); font-size: 14px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+  .tags li { background: var(--tag-bg); color: var(--tag-text); font-size: 12px; padding: 3px 9px; border-radius: 6px; }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: auto; padding-top: 6px; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px; text-decoration: none; font-size: 14px; font-weight: 500;
+    padding: 9px 16px; border-radius: 10px; border: 1px solid var(--border); color: var(--text);
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  .btn[aria-disabled="true"] { opacity: .5; pointer-events: none; }
+  .note { font-size: 12px; color: var(--muted); margin: 0; }
+
+  .skills { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+  .skill { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; }
+  .skill h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 500; }
+
+  footer { padding: 40px 0 56px; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <!-- TODO: 名前・職種・自己紹介を書き換えてください -->
+    <h1>yokotaka9160</h1>
+    <p class="role">Webエンジニア（Python / TypeScript）</p>
+    <p class="intro">
+      FastAPI と React を使ったWebアプリ開発や、音声データを使った機械学習の評価システムを作ってきました。
+      下の「デモを開く」から、各アプリをブラウザでそのまま試せます。
+    </p>
+    <nav class="links">
+      <a href="https://github.com/yokotaka9160" target="_blank" rel="noopener">GitHub</a>
+      <a href="#works">Works</a>
+      <a href="#skills">Skills</a>
+      <!-- <a href="mailto:you@example.com">Contact</a> -->
+    </nav>
+  </header>
+
+  <section id="works">
+    <h2>Works</h2>
+    <div class="grid" id="works-grid"></div>
+  </section>
+
+  <section id="archive">
+    <h2>Earlier projects <small>学生時代〜初期の制作物</small></h2>
+    <div class="grid" id="archive-grid"></div>
+  </section>
+
+  <section id="skills">
+    <h2>Skills</h2>
+    <div class="skills">
+      <div class="skill"><h3>Frontend</h3><ul class="tags"><li>React</li><li>TypeScript</li><li>Vite</li><li>Tailwind CSS</li><li>shadcn/ui</li><li>Leaflet</li></ul></div>
+      <div class="skill"><h3>Backend</h3><ul class="tags"><li>Python</li><li>FastAPI</li><li>Django</li><li>Flask</li><li>Pydantic</li></ul></div>
+      <div class="skill"><h3>Infra / Test</h3><ul class="tags"><li>Docker</li><li>Docker Compose</li><li>nginx</li><li>pytest</li><li>Playwright</li></ul></div>
+      <div class="skill"><h3>ML / Other</h3><ul class="tags"><li>SIDEKIT（話者認識）</li><li>Kivy</li><li>Git</li><li>Spec-driven development</li></ul></div>
+    </div>
+  </section>
+
+  <footer>© yokotaka9160</footer>
+</div>
+
+<script>
+/*
+ * アプリ一覧（ここを編集するだけでカードが増減します）
+ *  status: "live"（公開中） / "wip"（開発中） / "archive"（過去作）
+ *  demo:   デプロイしたURL。空文字ならボタンは無効表示になります
+ *  image:  スクリーンショットのパス（例: "images/find-restaurant.png"）。空なら仮のサムネイル
+ */
+const WORKS = [
+  {
+    name: "FindRestr",
+    repo: "https://github.com/yokotaka9160/Find-Restaurant-App",
+    demo: "",            // TODO: Render 等にデプロイしたら URL を入れる
+    image: "",
+    icon: "🍽️",
+    status: "live",
+    featured: true,
+    summary: "エリア・現在地・移動ルートの3通りで飲食店を探せるWebアプリ。リストと地図を切り替えて表示します。",
+    points: [
+      "ルート検索：出発地〜目的地の経路沿い（200m〜2km）の店舗を抽出",
+      "ジャンル・予算・評価で絞り込み、条件変更で自動再検索",
+      "APIキーはバックエンドだけが持つ構成。キー未設定でもサンプルデータで動作",
+      "pytest と Playwright の E2E テストを Docker で実行"
+    ],
+    tags: ["React 19", "TypeScript", "Tailwind CSS", "FastAPI", "Leaflet", "Yelp API", "OSRM", "Docker", "Playwright"],
+    docs: [
+      { label: "要件定義書", url: "https://github.com/yokotaka9160/Find-Restaurant-App/blob/main/docs/requirements.md" },
+      { label: "設計書",     url: "https://github.com/yokotaka9160/Find-Restaurant-App/blob/main/docs/design.md" }
+    ],
+    note: "無料サーバーのため、初回は起動に30秒ほどかかる場合があります。"
+  },
+  {
+    name: "Dive Log",
+    repo: "https://github.com/yokotaka9160/Dive-Log-App",
+    demo: "",
+    image: "",
+    icon: "🤿",
+    status: "wip",
+    summary: "ダイビングのログ（日時・ポイント・水深・透明度など）を記録・振り返りできるアプリ。",
+    points: [],
+    tags: ["Python", "Django", "SQLite", "Docker"]
+  },
+  {
+    name: "Stock Hypothesis Simulator",
+    repo: "https://github.com/yokotaka9160/Stock-Hypothesis-App",
+    demo: "",
+    image: "",
+    icon: "📈",
+    status: "wip",
+    summary: "株式取引の仮説（売買ルール）を過去データでシミュレーションし、損益結果を出力するツール。",
+    points: ["仕様駆動開発（Spec Kit）で要件定義から進行中"],
+    tags: ["Python", "Spec Kit"],
+    docs: [
+      { label: "仕様書", url: "https://github.com/yokotaka9160/Stock-Hypothesis-App/blob/main/specs/001-stock-hypothesis-validation/spec.md" }
+    ],
+  }
+];
+
+const ARCHIVE = [
+  {
+    name: "ML with SIDEKIT",
+    repo: "https://github.com/yokotaka9160/ML_with_SIDEKIT",
+    icon: "🎙️",
+    status: "archive",
+    summary: "音声データの前処理と、話者認識AIの性能評価を行うシステム。",
+    tags: ["Python", "SIDEKIT", "機械学習"]
+  },
+  {
+    name: "録音補助GUI",
+    repo: "https://github.com/yokotaka9160/Kivy_project",
+    icon: "🎛️",
+    status: "archive",
+    summary: "音声データ収集のための録音を補助するデスクトップGUI。",
+    tags: ["Python", "Kivy"]
+  },
+  {
+    name: "出欠管理サンプル",
+    repo: "https://github.com/yokotaka9160/attend_check",
+    icon: "✅",
+    status: "archive",
+    summary: "出欠を送信・確認できるシンプルなWebアプリ。",
+    tags: ["Python", "Flask", "HTML/CSS"]
+  }
+];
+
+const STATUS_LABEL = { live: "完成", wip: "開発中", archive: "過去作" };
+
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+function card(w) {
+  const thumb = w.image
+    ? `<img src="${esc(w.image)}" alt="${esc(w.name)} のスクリーンショット" loading="lazy">`
+    : `<span class="ph" aria-hidden="true">${w.icon || "📦"}</span>`;
+  const demoBtn = w.status === "archive" ? "" : w.demo
+    ? `<a class="btn primary" href="${esc(w.demo)}" target="_blank" rel="noopener">▶ デモを開く</a>`
+    : `<a class="btn primary" aria-disabled="true">▶ デモ準備中</a>`;
+  return `
+    <article class="card${w.featured ? " featured" : ""}">
+      <div class="thumb">${thumb}</div>
+      <div class="body">
+        <div class="title-row">
+          <h3>${esc(w.name)}</h3>
+          <span class="status ${w.status}">${STATUS_LABEL[w.status]}</span>
+        </div>
+        <p class="summary">${esc(w.summary)}</p>
+        ${w.points && w.points.length ? `<ul class="points">${w.points.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""}
+        <ul class="tags">${w.tags.map(t => `<li>${esc(t)}</li>`).join("")}</ul>
+        <div class="actions">
+          ${demoBtn}
+          <a class="btn" href="${esc(w.repo)}" target="_blank" rel="noopener">GitHub</a>
+          ${(w.docs || []).map(d => `<a class="btn" href="${esc(d.url)}" target="_blank" rel="noopener">📄 ${esc(d.label)}</a>`).join("")}
+        </div>
+        ${w.note && w.demo ? `<p class="note">${esc(w.note)}</p>` : ""}
+      </div>
+    </article>`;
+}
+
+document.getElementById("works-grid").innerHTML = WORKS.map(card).join("");
+document.getElementById("archive-grid").innerHTML = ARCHIVE.map(card).join("");
+</script>
+</body>
+</html>

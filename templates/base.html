@@ -27,7 +27,7 @@
             {% csrf_token %}
             <button type="submit" class="btn btn-ghost btn-sm">ログアウト</button>
           </form>
-          <span class="user-chip">{{ user.username }}</span>
+          <a class="user-chip" href="{% url 'accounts:profile' %}">{{ user.username }}</a>
         {% else %}
           <a href="{% url 'accounts:login' %}" class="btn btn-ghost btn-sm">ログイン</a>
           <a href="{% url 'accounts:register' %}" class="btn btn-accent btn-sm">新規登録</a>

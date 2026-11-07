@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}個人ページ{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div>
+    <p class="eyebrow">My Page</p>
+    <h1 class="page-title">個人ページ</h1>
+  </div>
+  <a href="{% url 'divelogs:dashboard' %}" class="btn btn-outline">潜水ログ可視化ダッシュボード</a>
+</div>
+
+<div class="form-wrap card-panel">
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <form method="post">
+    {% csrf_token %}
+    <div class="field">
+      <label for="{{ form.username.id_for_label }}">{{ form.username.label }}</label>
+      {{ form.username }}{{ form.username.errors }}
+      {% if form.username.help_text %}<span class="helptext">{{ form.username.help_text }}</span>{% endif %}
+    </div>
+    <div class="field">
+      <label for="{{ form.email.id_for_label }}">{{ form.email.label }}</label>
+      {{ form.email }}{{ form.email.errors }}
+      <span class="helptext">ログインに使用するメールアドレスです。変更後は新しいメールアドレスでログインしてください。</span>
+    </div>
+    <button type="submit" class="btn btn-accent">プロフィールを更新</button>
+  </form>
+
+  <div class="detail-actions">
+    <a href="{% url 'accounts:password_change' %}" class="btn">パスワードを変更</a>
+  </div>
+</div>
+{% endblock %}
