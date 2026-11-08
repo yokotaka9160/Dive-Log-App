@@ -47,7 +47,6 @@ class DiveLog(models.Model):
         WET65mm = 'wet65mm', _('ウェットスーツ: 6.5mm')
         DRY = 'dry', _('ドライスーツ')
 
-
     user = models.ForeignKey( #「1人のUserが、複数のArticleを投稿できる」という関係の定義
         User, #ForeignKeyの第一引数 で、「どのモデルを参照するか」
         on_delete=models.CASCADE, #参照先( User )のレコードが削除されたときの挙動を指定(親が消えたら子も連動して削除する)
@@ -67,6 +66,7 @@ class DiveLog(models.Model):
             entry_date__lte=self.entry_date
         ).count()
         return count
+    
     dive_date = models.DateField(
         verbose_name=_("潜水日付")
     )
@@ -96,6 +96,7 @@ class DiveLog(models.Model):
     exit_date = models.DateTimeField(
         verbose_name=_("エキジット日時")
     )
+
     @property
     @admin.display(description=_("潜水時間（分）"))
     def duration_minutes(self):
@@ -104,6 +105,14 @@ class DiveLog(models.Model):
             delta = self.exit_date - self.entry_date
             return int(delta.total_seconds() // 60)
         return None   
+
+    @property
+    @admin.display(description=_("使用タンク圧力"))
+    def pressure_used(self):
+        """使用タンク圧力を計算して返す"""
+        if self.start_press is not None and self.end_press is not None:
+            return self.start_press - self.end_press
+        return None
 
     start_press = models.IntegerField(
         verbose_name=_("潜水開始時タンク圧力")
@@ -185,6 +194,13 @@ class DiveLog(models.Model):
         blank=True,
         verbose_name=_("自由記述欄")
     )
+
+    photo = models.ImageField(
+        upload_to='dive_log_photos/',  # 画像の保存先ディレクトリ
+        blank=True,
+        verbose_name=_("写真")
+    )
+
     #DiveLogモデルの設定
     class Meta:
         verbose_name = _("ダイブログ")#管理画面などで表示される、このモデルの「単数形」の名前

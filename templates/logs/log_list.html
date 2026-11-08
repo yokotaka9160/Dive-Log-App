@@ -15,26 +15,124 @@
   {% endif %}
 </div>
 
-<!-- <div class="toolbar"> -->
-  <!-- <form method="get" class="search-form" role="search">
-    <input type="search" name="q" value="{{ query }}" placeholder="サイト名・生物・メモで検索">
-    {% if current_sort %}<input type="hidden" name="sort" value="{{ current_sort }}">{% endif %}
-    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
-    {% if mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
-    <button type="submit" class="btn">検索</button>
-  </form> -->
+{% if mine_only %}
+  {% comment %}
+    マイログの並び替え・絞り込み。
+    1 つの GET フォームにまとめているので、並び替えを変えても絞り込み条件は保たれる。
+    送信される値: mine=1, sort, order, と filter_form（バックエンドの DiveLogFilterForm）の各項目。
+  {% endcomment %}
+  <form method="get" class="log-filter" id="log-filter">
+    <input type="hidden" name="mine" value="1">
 
-  <!-- <form method="get" style="display:flex;gap:8px;align-items:center;">
-    {% if query %}<input type="hidden" name="q" value="{{ query }}">{% endif %}
-    {% if fav_only %}<input type="hidden" name="fav" value="1">{% endif %}
-    {% if mine_only %}<input type="hidden" name="mine" value="1">{% endif %}
-    <select name="sort" onchange="this.form.submit()" style="width:auto;">
-      {% for key, opt in sort_options.items %}
-        <option value="{{ key }}" {% if key == current_sort %}selected{% endif %}>{{ opt.0 }}</option>
-      {% endfor %}
-    </select>
-  </form> -->
-<!-- </div> -->
+    <div class="toolbar">
+      {% if filter_form %}
+        <div class="search-form" role="search">
+          {{ filter_form.q }}
+          <button type="submit" class="btn">検索</button>
+        </div>
+      {% endif %}
+
+      {% with sort=request.GET.sort|default:"date" order=request.GET.order|default:"desc" %}
+        <div class="sort-bar">
+          <label for="sort-key" class="sort-label">並び替え</label>
+          <select name="sort" id="sort-key" class="js-autosubmit">
+            <option value="date" {% if sort == "date" %}selected{% endif %}>潜水日付</option>
+            <option value="duration" {% if sort == "duration" %}selected{% endif %}>潜水時間</option>
+            <option value="max_depth" {% if sort == "max_depth" %}selected{% endif %}>最大水深</option>
+            <option value="transparency" {% if sort == "transparency" %}selected{% endif %}>透明度</option>
+            <option value="pressure" {% if sort == "pressure" %}selected{% endif %}>タンク残圧（開始時−終了時）</option>
+            <option value="bottom_temp" {% if sort == "bottom_temp" %}selected{% endif %}>水底温度</option>
+          </select>
+          <select name="order" aria-label="並び順" class="js-autosubmit">
+            <option value="desc" {% if order == "desc" %}selected{% endif %}>大きい順・新しい順</option>
+            <option value="asc" {% if order == "asc" %}selected{% endif %}>小さい順・古い順</option>
+          </select>
+          <noscript><button type="submit" class="btn btn-sm">並び替え</button></noscript>
+        </div>
+      {% endwith %}
+    </div>
+
+    {% if filter_form %}
+      <details class="filter-panel card-panel" {% if filter_form.has_changed %}open{% endif %}>
+        <summary>
+          絞り込み条件
+          {% if filter_form.has_changed %}<span class="filter-badge">適用中</span>{% endif %}
+        </summary>
+
+        {% if filter_form.non_field_errors %}
+          <ul class="errorlist">{% for e in filter_form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
+        {% endif %}
+
+        <div class="filter-grid">
+          <div class="field filter-wide">
+            <label for="{{ filter_form.date_from.id_for_label }}">潜水日付</label>
+            <div class="range">
+              {{ filter_form.date_from }}<span>〜</span>{{ filter_form.date_to }}
+            </div>
+            {{ filter_form.date_from.errors }}{{ filter_form.date_to.errors }}
+          </div>
+
+          <div class="field">
+            <label for="{{ filter_form.entry_way.id_for_label }}">{{ filter_form.entry_way.label }}</label>
+            {{ filter_form.entry_way }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.dive_purpose.id_for_label }}">{{ filter_form.dive_purpose.label }}</label>
+            {{ filter_form.dive_purpose }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.weather.id_for_label }}">{{ filter_form.weather.label }}</label>
+            {{ filter_form.weather }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.current_str.id_for_label }}">{{ filter_form.current_str.label }}</label>
+            {{ filter_form.current_str }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.tank_type.id_for_label }}">{{ filter_form.tank_type.label }}</label>
+            {{ filter_form.tank_type }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.suit_type.id_for_label }}">{{ filter_form.suit_type.label }}</label>
+            {{ filter_form.suit_type }}
+          </div>
+
+          <div class="field">
+            <label for="{{ filter_form.depth_min.id_for_label }}">最大水深（m）</label>
+            <div class="range">
+              {{ filter_form.depth_min }}<span>〜</span>{{ filter_form.depth_max }}
+            </div>
+            {{ filter_form.depth_min.errors }}{{ filter_form.depth_max.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.bottom_temp_min.id_for_label }}">水底温度（℃）</label>
+            <div class="range">
+              {{ filter_form.bottom_temp_min }}<span>〜</span>{{ filter_form.bottom_temp_max }}
+            </div>
+            {{ filter_form.bottom_temp_min.errors }}{{ filter_form.bottom_temp_max.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.transparency_min.id_for_label }}">透明度（m）</label>
+            <div class="range">
+              {{ filter_form.transparency_min }}<span>〜</span>{{ filter_form.transparency_max }}
+            </div>
+            {{ filter_form.transparency_min.errors }}{{ filter_form.transparency_max.errors }}
+          </div>
+          <div class="field">
+            <label for="{{ filter_form.duration_min.id_for_label }}">潜水時間（分）</label>
+            <div class="range">{{ filter_form.duration_min }}<span>以上</span></div>
+            {{ filter_form.duration_min.errors }}
+          </div>
+        </div>
+
+        <div class="filter-actions">
+          <button type="submit" class="btn btn-accent btn-sm">この条件で絞り込む</button>
+          <a href="?mine=1" class="btn btn-ghost btn-sm">条件をクリア</a>
+        </div>
+      </details>
+    {% endif %}
+  </form>
+{% endif %}
 
 {% if logs %}
   <div class="grid">
@@ -42,7 +140,7 @@
       <article class="card">
         <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not log.photo %}placeholder{% endif %}">
           {% if log.photo %}
-            <img src="{{ log.photo.url }}" alt="{{ log.title }}">
+            <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真" loading="lazy">
           {% else %}
             <span>◒</span>
           {% endif %}
@@ -60,6 +158,8 @@
             {% if log.dive_purpose %}<span><b>{{ log.get_dive_purpose_display }}</b></span>{% endif %}
             {% if log.entry_way %}<span><b>{{ log.get_entry_way_display }}</b></span>{% endif %}
             {% if log.duration_minutes %}<span><b>潜水時間: {{ log.duration_minutes }}</b><small>分</small></span>{% endif %}
+            {% if log.max_depth %}<span><b>最大水深: {{ log.max_depth|floatformat:1 }}</b><small>m</small></span>{% endif %}
+            {% if log.transparency %}<span><b>透明度: {{ log.transparency }}</b><small>m</small></span>{% endif %}
             {% if log.surf_temp %}<span><b>{{ log.surf_temp }}</b><small>℃</small></span>{% endif %}
           </div> 
         </div>
@@ -83,18 +183,22 @@
 
   {% if is_paginated %}
     <div class="pagination">
+      {% comment %}querystring タグ（Django 5.1 以降）は、今の URL の条件（mine・sort・絞り込み）を残したまま page だけを差し替える{% endcomment %}
       {% if page_obj.has_previous %}
-        <a href="?{% if query %}q={{ query }}&{% endif %}sort={{ current_sort }}{% if fav_only %}&fav=1{% endif %}{% if mine_only %}&mine=1{% endif %}&page={{ page_obj.previous_page_number }}">← 前へ</a>
+        <a href="{% querystring page=page_obj.previous_page_number %}">← 前へ</a>
       {% endif %}
       <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
       {% if page_obj.has_next %}
-        <a href="?{% if query %}q={{ query }}&{% endif %}sort={{ current_sort }}{% if fav_only %}&fav=1{% endif %}{% if mine_only %}&mine=1{% endif %}&page={{ page_obj.next_page_number }}">次へ →</a>
+        <a href="{% querystring page=page_obj.next_page_number %}">次へ →</a>
       {% endif %}
     </div>
   {% endif %}
 {% else %}
   <div class="empty">
-    {% if query %}
+    {% if mine_only and filter_form.has_changed %}
+      条件に一致するダイブログはありません。
+      <div style="margin-top:16px;"><a href="?mine=1" class="btn btn-ghost btn-sm">条件をクリア</a></div>
+    {% elif query %}
       「{{ query }}」に一致するダイブログは見つかりませんでした。
     <!-- {% elif fav_only %}
       お気に入りに登録したダイブログはまだありません。 -->
@@ -104,5 +208,28 @@
       まだダイブログがありません。最初の 1 本を記録しましょう。
     {% endif %}
   </div>
+{% endif %}
+
+{% if mine_only %}
+  <script>
+    (function () {
+      var form = document.getElementById("log-filter");
+      if (!form) return;
+
+      // 並び替えを変えたら、すぐに検索し直す（絞り込み条件も一緒に送られる）
+      form.querySelectorAll(".js-autosubmit").forEach(function (select) {
+        select.addEventListener("change", function () {
+          form.requestSubmit ? form.requestSubmit() : form.submit();
+        });
+      });
+
+      // 空欄の項目は送らない（URL を ?mine=1&sort=... のように短く保つ）
+      form.addEventListener("submit", function () {
+        form.querySelectorAll("input, select").forEach(function (el) {
+          if (el.name && el.value === "") el.disabled = true;
+        });
+      });
+    })();
+  </script>
 {% endif %}
 {% endblock %}

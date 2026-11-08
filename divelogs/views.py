@@ -2,7 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin, UserPassesTestMixin
-from django.db.models import Count, Max, Q
+from django.db.models import Count, ExpressionWrapper, DurationField, F, Max, Q
 from django.db.models.functions import TruncMonth
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
@@ -16,16 +16,18 @@ from django.views.generic import (
     TemplateView,
 )
 
-from .forms import DiveLogForm, SignUpForm
+from .forms import DiveLogForm, SignUpForm, DiveLogFilterForm
 from .models import DiveLog
+from datetime import timedelta
 
 # 並び替えの選択肢: キー -> (ラベル, order_by 引数)
-SORT_OPTIONS = {
-    "new": ("新しい順", ["-dive_date","-id"]),
-    "old": ("古い順", ["dive_date","id"]),
-    "depth": ("深度が深い順", ["-max_depth"]),
-    "duration": ("潜水時間が長い順", ["-duration"]),
-    # "popular": ("お気に入りが多い順", ["-fav_total", "-date"]),
+SORT_FIELDS = {
+    "date":"dive_date",
+    "max_depth":"max_depth",
+    "duration":"duration_db",
+    "transparency":"transparency",
+    "pressure":"pressure_used_db",
+    "bottom_temp":"w_bottom_temp",
 }
 
 
@@ -43,36 +45,72 @@ class LogListView(ListView):
     paginate_by = 9
 
     def get_queryset(self):
-        qs = DiveLog.objects.select_related("user")
-
-        # 検索
-        query = self.request.GET.get("q", "").strip()
-        if query:
-            qs = qs.filter(
-                Q(title__icontains=query)
-                | Q(site__icontains=query)
-                | Q(location__icontains=query)
-                | Q(creatures__icontains=query)
-                | Q(notes__icontains=query)
-            )
-
-        # お気に入り絞り込み（ログイン時のみ有効）
-        # if self.request.GET.get("fav") == "1" and self.request.user.is_authenticated:
-        #     qs = qs.filter(favorites=self.request.user)
+        qs = DiveLog.objects.select_related("user").annotate(
+            duration_db=ExpressionWrapper(
+                F("exit_date") - F("entry_date"), output_field=DurationField()
+            ),
+            pressure_used_db=F("start_press") - F("end_press"),
+        )    
 
         # 自分の投稿のみ
         if self.request.GET.get("mine") == "1" and self.request.user.is_authenticated:
             qs = qs.filter(user=self.request.user)
 
+        # 絞り込み（画面から送られた値をフォームで検証してから使う）
+        self.filter_form = DiveLogFilterForm(self.request.GET)
+        if self.filter_form.is_valid():
+            data = self.filter_form.cleaned_data
+            if data["q"]:
+                qs = qs.filter(
+                                Q(location__icontains=data["q"])
+                                | Q(dive_point_name__icontains=data["q"])
+                                | Q(fish__icontains=data["q"])
+                                | Q(buddy_name__icontains=data["q"])
+                                | Q(inst_name__icontains=data["q"])
+                                | Q(free_text_field__icontains=data["q"])
+                            )
+            if data["date_from"]:
+                qs = qs.filter(dive_date__gte=data["date_from"])
+            if data["date_to"]:
+                qs = qs.filter(dive_date__lte=data["date_to"])
+            if data["entry_way"]:
+                qs = qs.filter(entry_way=data["entry_way"])
+            if data["depth_min"] is not None:
+                qs = qs.filter(max_depth__gte=data["depth_min"])
+            if data["depth_max"] is not None:
+                qs = qs.filter(max_depth__lte=data["depth_max"])
+            if data["dive_purpose"]:
+                qs = qs.filter(dive_purpose=data["dive_purpose"])
+            if data["weather"]:
+                qs = qs.filter(weather=data["weather"])
+            if data["current_str"]:
+                qs = qs.filter(current_str=data["current_str"])
+            if data["tank_type"]:
+                qs = qs.filter(tank_type=data["tank_type"])
+            if data["suit_type"]:
+                qs = qs.filter(suit_type=data["suit_type"])
+            if data["bottom_temp_min"] is not None:
+                qs = qs.filter(w_bottom_temp__gte=data["bottom_temp_min"])
+            if data["bottom_temp_max"] is not None:
+                qs = qs.filter(w_bottom_temp__lte=data["bottom_temp_max"])
+            if data["transparency_min"] is not None:
+                qs = qs.filter(transparency__gte=data["transparency_min"])
+            if data["transparency_max"] is not None:
+                qs = qs.filter(transparency__lte=data["transparency_max"])
+            if data["duration_min"] is not None:
+                qs = qs.filter(duration_db__gte=timedelta(minutes=data["duration_min"]))
+
         # 並び替え
-        sort = self.request.GET.get("sort", "new")
-        order = SORT_OPTIONS.get(sort, SORT_OPTIONS["new"])[1]
-        return qs.order_by(*order)
+        sort = self.request.GET.get("sort", "date")
+        field = SORT_FIELDS.get(sort, SORT_FIELDS["date"]) # 想定外の値なら日付順
+        if self.request.GET.get("order") != "asc":   # asc 以外は大きい順（新しい順）
+            field = "-" + field
+        return qs.order_by(field,"-id")  # 値が同じときは、新しく登録した順
 
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
-        ctx["query"] = self.request.GET.get("q", "")
         ctx["mine_only"] = self.request.GET.get("mine") == "1"
+        ctx["filter_form"] = self.filter_form
         return ctx
         # ctx = super().get_context_data(**kwargs)
         # ctx["query"] = self.request.GET.get("q", "")
@@ -88,7 +126,6 @@ class LogListView(ListView):
         #     ctx["my_fav_ids"] = set()
         # # クエリ文字列を保持するためのベース（sort を除く）
         # return ctx
-
 
 class LogDetailView(DetailView):
     model = DiveLog

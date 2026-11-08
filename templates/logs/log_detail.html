@@ -15,11 +15,13 @@
 
 <div class="detail-grid">
   <div>
-    <!-- {% if log.photo %}
-      <div class="detail-media"><img src="{{ log.photo.url }}" alt="{{ log.title }}"></div>
-    {% else %} -->
+    {% if log.photo %}
+      <a href="{{ log.photo.url }}" target="_blank" rel="noopener" class="detail-media" title="元のサイズで開く">
+        <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真">
+      </a>
+    {% else %}
       <div class="detail-media placeholder">◒</div>
-    <!-- {% endif %} -->
+    {% endif %}
 
     {% if log.fish %}
       <div class="tag-row" style="margin-top:20px;">
@@ -32,10 +34,6 @@
           {% endfor %}
         {% endfor %}
       </div>
-    {% endif %}
-
-    {% if log.notes %}
-      <div class="notes">{{ log.free_text_field }}
     {% endif %}
   </div>
 

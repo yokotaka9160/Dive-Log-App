@@ -17,12 +17,6 @@
       <ul class="errorlist">{% for e in form.non_field_errors %}<li>{{ e }}</li>{% endfor %}</ul>
     {% endif %}
 
-    <div class="field">
-      <label for="{{ form.title.id_for_label }}">{{ form.title.label }}</label>
-      {{ form.title }}
-      {{ form.title.errors }}
-    </div>
-
     <div class="form-row">
       <div class="field">
         <label for="{{ form.dive_date.id_for_label }}">{{ form.dive_date.label }}</label>
@@ -152,10 +146,30 @@
       {{ form.free_text_field }}{{ form.free_text_field.errors }}
     </div>
 
-    <!-- <div class="field">
-      <label for="{{ form.photo.id_for_label }}">{{ form.photo.label }}</label>
-      {{ form.photo }}{{ form.photo.errors }}
-    </div> -->
+    {% if form.photo %}
+      {% comment %}
+        写真のアップロード欄。form タグの enctype="multipart/form-data" がないとファイルが送られないので注意。
+        編集時は今の写真を表示し、ClearableFileInput の「クリア」で削除できる。
+      {% endcomment %}
+      <div class="field">
+        <label for="{{ form.photo.id_for_label }}">{{ form.photo.label }}</label>
+        <div class="photo-field">
+          <div class="photo-preview{% if not form.instance.photo %} is-empty{% endif %}" id="photo-preview">
+            {% if form.instance.photo %}
+              <img src="{{ form.instance.photo.url }}" alt="現在の写真">
+            {% else %}
+              <span>写真を選ぶと、ここにプレビューが表示されます</span>
+            {% endif %}
+          </div>
+          <div class="photo-input">
+            {{ form.photo }}
+            <span class="helptext">JPEG・PNG・WebP、10MB まで</span>
+            <p class="errorlist" id="photo-error" hidden></p>
+            {{ form.photo.errors }}
+          </div>
+        </div>
+      </div>
+    {% endif %}
 
     <div class="form-row">
       <div class="field">
@@ -180,4 +194,54 @@
     </div>
   </form>
 </div>
+
+{% if form.photo %}
+  <script>
+    (function () {
+      var input = document.getElementById("{{ form.photo.id_for_label }}");
+      var preview = document.getElementById("photo-preview");
+      var error = document.getElementById("photo-error");
+      if (!input || !preview) return;
+
+      var MAX_BYTES = 10 * 1024 * 1024;  // バックエンドの上限と合わせる（10MB）
+      var original = preview.innerHTML;  // 選択を取り消したときに戻す表示
+      var objectUrl = null;
+
+      input.addEventListener("change", function () {
+        var file = input.files && input.files[0];
+        error.hidden = true;
+        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
+
+        // 選択を取り消した場合は元の表示に戻す
+        if (!file) {
+          preview.innerHTML = original;
+          return;
+        }
+        // 画像以外や大きすぎるファイルは、送信前にここで知らせる（最終的なチェックはサーバー側）
+        if (!file.type.startsWith("image/")) {
+          error.textContent = "画像ファイルを選んでください。";
+          error.hidden = false;
+          input.value = "";
+          preview.innerHTML = original;
+          return;
+        }
+        if (file.size > MAX_BYTES) {
+          error.textContent = "ファイルサイズは 10MB 以下にしてください。";
+          error.hidden = false;
+          input.value = "";
+          preview.innerHTML = original;
+          return;
+        }
+        // 選んだ画像をその場でプレビューする（まだサーバーには送られていない）
+        objectUrl = URL.createObjectURL(file);
+        preview.classList.remove("is-empty");
+        preview.innerHTML = "";
+        var img = document.createElement("img");
+        img.src = objectUrl;
+        img.alt = "選択した写真のプレビュー";
+        preview.appendChild(img);
+      });
+    })();
+  </script>
+{% endif %}
 {% endblock %}
