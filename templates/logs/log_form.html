@@ -134,23 +134,49 @@
       </div>
     </div>
 
-    <div class="field">
-      <label for="{{ form.fish.id_for_label }}">{{ form.fish.label }}</label>
-      {{ form.fish }}
-      {% if form.fish.help_text %}<span class="helptext">{{ form.fish.help_text }}</span>{% endif %}
-      {{ form.fish.errors }}
-    </div>
+    {% comment %}
+      写真のアップロード欄。form タグの enctype="multipart/form-data" がないとファイルが送られないので注意。
+      識別の結果を下の「発見できた魚」欄に追加するので、写真は魚の欄より上に置いている。
 
-    <div class="field">
-      <label for="{{ form.free_text_field.id_for_label }}">{{ form.free_text_field.label }}</label>
-      {{ form.free_text_field }}{{ form.free_text_field.errors }}
-    </div>
+      フォームに複数枚用の photos フィールドがあれば「複数枚の欄」、なければ今までの「1 枚の欄（photo）」を表示する。
+      複数枚の欄がバックエンドに送るもの:
+        - request.FILES.getlist("photos")        … 新しく追加する写真（何枚でも）
+        - request.POST.getlist("delete_photos")  … 削除にチェックした登録済み写真の pk
+      登録済みの写真は log.photos.all（DiveLogPhoto の related_name="photos"、画像は image フィールド）で読む。
+    {% endcomment %}
+    {% if form.photos %}
+      <div class="field" id="photos-field" data-max="10">
+        <label for="{{ form.photos.id_for_label }}">{{ form.photos.label }}</label>
 
-    {% if form.photo %}
-      {% comment %}
-        写真のアップロード欄。form タグの enctype="multipart/form-data" がないとファイルが送られないので注意。
-        編集時は今の写真を表示し、ClearableFileInput の「クリア」で削除できる。
-      {% endcomment %}
+        {% comment %}作成画面ではまだ pk がなく、関連の写真を読むとエラーになるので、pk があるときだけ読む{% endcomment %}
+        {% if form.instance.pk %}
+          {% with existing=form.instance.photos.all %}
+            {% if existing %}
+              <p class="photo-section-title">登録済みの写真（削除するものにチェック）</p>
+              <div class="photo-grid">
+                {% for p in existing %}
+                  <label class="photo-thumb">
+                    <img src="{{ p.image.url }}" alt="登録済みの写真 {{ forloop.counter }}" loading="lazy">
+                    <span class="photo-thumb-del">
+                      <input type="checkbox" name="delete_photos" value="{{ p.pk }}">削除
+                    </span>
+                  </label>
+                {% endfor %}
+              </div>
+            {% endif %}
+          {% endwith %}
+        {% endif %}
+
+        <p class="photo-section-title">写真を追加</p>
+        <div class="photo-input">
+          {{ form.photos }}
+          <span class="helptext">JPEG・PNG・WebP、1 枚 10MB まで・合計 10 枚まで。複数枚をまとめて選べます</span>
+        </div>
+        <p class="errorlist" id="photos-error" hidden></p>
+        {{ form.photos.errors }}
+        <div class="photo-grid" id="photos-preview" hidden></div>
+      </div>
+    {% elif form.photo %}
       <div class="field">
         <label for="{{ form.photo.id_for_label }}">{{ form.photo.label }}</label>
         <div class="photo-field">
@@ -170,6 +196,41 @@
         </div>
       </div>
     {% endif %}
+
+    {% comment %}
+      魚の識別（Gemini API）。as を付けた url タグは、URL が未登録でもエラーにならず空になる。
+      バックエンドで divelogs:identify_fish を urls.py に追加するまで、このブロックは表示されない。
+      新しく選んだ写真を 1 枚ずつ送り（フィールド名は photo）、見つかった名前をまとめて表示する。
+    {% endcomment %}
+    {% url 'divelogs:identify_fish' as identify_url %}
+    {% if identify_url %}
+      {% if form.photos or form.photo %}
+        <div class="fish-id" id="fish-id" data-url="{{ identify_url }}"
+             data-input-id="{% if form.photos %}{{ form.photos.id_for_label }}{% else %}{{ form.photo.id_for_label }}{% endif %}">
+          <button type="button" class="btn btn-outline btn-sm" id="fish-id-btn" disabled>
+            選んだ写真から魚を識別
+          </button>
+          <span class="helptext" id="fish-id-status">新しく写真を選ぶと識別できます</span>
+          <div class="fish-id-result" id="fish-id-result" hidden>
+            <p class="fish-id-caption">タップすると「{{ form.fish.label }}」に追加されます。AI の結果は間違えることがあります。</p>
+            <div class="tag-row" id="fish-id-chips"></div>
+            <button type="button" class="btn btn-ghost btn-sm" id="fish-id-all">すべて追加</button>
+          </div>
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="field">
+      <label for="{{ form.fish.id_for_label }}">{{ form.fish.label }}</label>
+      {{ form.fish }}
+      {% if form.fish.help_text %}<span class="helptext">{{ form.fish.help_text }}</span>{% endif %}
+      {{ form.fish.errors }}
+    </div>
+
+    <div class="field">
+      <label for="{{ form.free_text_field.id_for_label }}">{{ form.free_text_field.label }}</label>
+      {{ form.free_text_field }}{{ form.free_text_field.errors }}
+    </div>
 
     <div class="form-row">
       <div class="field">
@@ -195,8 +256,132 @@
   </form>
 </div>
 
-{% if form.photo %}
+{% if form.photos %}
   <script>
+    // 複数枚の写真：選んだ写真のプレビュー・チェック・1 枚ずつ外す
+    (function () {
+      var field = document.getElementById("photos-field");
+      var input = document.getElementById("{{ form.photos.id_for_label }}");
+      var grid = document.getElementById("photos-preview");
+      var error = document.getElementById("photos-error");
+      if (!field || !input) return;
+
+      var MAX_BYTES = 10 * 1024 * 1024;                       // 1 枚の上限（バックエンドと合わせる）
+      var MAX_COUNT = parseInt(field.dataset.max, 10) || 10;  // 合計枚数の上限（バックエンドと合わせる）
+      var canEdit = typeof DataTransfer !== "undefined";      // 選択から 1 枚だけ外すのに使う
+      var urls = [];
+
+      function showError(msg) {
+        error.textContent = msg || "";
+        error.hidden = !msg;
+      }
+
+      // 登録済みで、削除にチェックしていない写真の枚数
+      function keptCount() {
+        return field.querySelectorAll('input[name="delete_photos"]:not(:checked)').length;
+      }
+
+      function selected() {
+        return input.files ? Array.prototype.slice.call(input.files) : [];
+      }
+
+      // input の選択内容を files で置き換える（ブラウザが対応していれば）
+      function setFiles(files) {
+        if (!canEdit) return;
+        var dt = new DataTransfer();
+        files.forEach(function (f) { dt.items.add(f); });
+        input.files = dt.files;
+      }
+
+      // 魚の識別ブロックに「選択が変わった」ことを知らせる
+      function notify() {
+        input.dispatchEvent(new CustomEvent("photos:updated", { bubbles: true }));
+      }
+
+      function render() {
+        urls.forEach(function (u) { URL.revokeObjectURL(u); });
+        urls = [];
+        grid.innerHTML = "";
+        var files = selected();
+        grid.hidden = files.length === 0;
+        files.forEach(function (file, i) {
+          var url = URL.createObjectURL(file);
+          urls.push(url);
+          var item = document.createElement("div");
+          item.className = "photo-thumb is-new";
+          var img = document.createElement("img");
+          img.src = url;
+          img.alt = "追加する写真 " + (i + 1);
+          item.appendChild(img);
+          if (canEdit) {
+            var remove = document.createElement("button");
+            remove.type = "button";
+            remove.className = "photo-thumb-remove";
+            remove.setAttribute("aria-label", file.name + " を外す");
+            remove.textContent = "×";
+            remove.addEventListener("click", function () {
+              var rest = selected();
+              rest.splice(i, 1);
+              setFiles(rest);
+              showError("");
+              render();
+              checkTotal();
+              notify();
+            });
+            item.appendChild(remove);
+          }
+          grid.appendChild(item);
+        });
+      }
+
+      // 登録済み（残すもの）＋新しく選んだ写真が上限を超えていないか
+      function checkTotal() {
+        var total = keptCount() + selected().length;
+        if (total > MAX_COUNT) {
+          showError("写真は合計 " + MAX_COUNT + " 枚までです（今 " + total + " 枚）。外すか、登録済みの写真を削除してください。");
+          return false;
+        }
+        return true;
+      }
+
+      input.addEventListener("change", function () {
+        var ok = [];
+        var problems = [];
+        selected().forEach(function (f) {
+          if (!f.type.startsWith("image/")) problems.push(f.name + " は画像ではありません");
+          else if (f.size > MAX_BYTES) problems.push(f.name + " は 10MB を超えています");
+          else ok.push(f);
+        });
+        // 不正なファイルは選択から外す（外せないブラウザでは、選び直してもらう）
+        if (problems.length) {
+          if (canEdit) setFiles(ok);
+          else input.value = "";
+        }
+        render();
+        if (problems.length) {
+          showError(problems.join("。") + "。" + (canEdit ? "この写真は外しました。" : "選び直してください。"));
+        } else if (checkTotal()) {
+          showError("");
+        }
+      });
+
+      // 削除のチェックを変えたら、合計枚数を確認し直す
+      field.addEventListener("change", function (e) {
+        if (e.target.name === "delete_photos" && checkTotal()) showError("");
+      });
+
+      // 上限を超えたまま送信しない（最終的なチェックはサーバー側）
+      input.form.addEventListener("submit", function (e) {
+        if (!checkTotal()) {
+          e.preventDefault();
+          field.scrollIntoView({ block: "center" });
+        }
+      });
+    })();
+  </script>
+{% elif form.photo %}
+  <script>
+    // 1 枚の写真：選んだ写真のプレビュー
     (function () {
       var input = document.getElementById("{{ form.photo.id_for_label }}");
       var preview = document.getElementById("photo-preview");
@@ -212,12 +397,10 @@
         error.hidden = true;
         if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
 
-        // 選択を取り消した場合は元の表示に戻す
         if (!file) {
           preview.innerHTML = original;
           return;
         }
-        // 画像以外や大きすぎるファイルは、送信前にここで知らせる（最終的なチェックはサーバー側）
         if (!file.type.startsWith("image/")) {
           error.textContent = "画像ファイルを選んでください。";
           error.hidden = false;
@@ -232,7 +415,6 @@
           preview.innerHTML = original;
           return;
         }
-        // 選んだ画像をその場でプレビューする（まだサーバーには送られていない）
         objectUrl = URL.createObjectURL(file);
         preview.classList.remove("is-empty");
         preview.innerHTML = "";
@@ -244,4 +426,164 @@
     })();
   </script>
 {% endif %}
+
+<script>
+  // 写真から魚を識別して「発見できた魚」欄に追加する（名前は半角スペース区切り）
+  (function () {
+    var box = document.getElementById("fish-id");
+    if (!box) return;  // 識別の URL がまだないときは何もしない
+
+    var input = document.getElementById(box.dataset.inputId);
+    var fishInput = document.getElementById("{{ form.fish.id_for_label }}");
+    var btn = document.getElementById("fish-id-btn");
+    var status = document.getElementById("fish-id-status");
+    var result = document.getElementById("fish-id-result");
+    var chips = document.getElementById("fish-id-chips");
+    var addAll = document.getElementById("fish-id-all");
+    var csrf = document.querySelector("[name=csrfmiddlewaretoken]").value;
+    var MAX_IDENTIFY = 10;  // 1 回の識別で送る写真の上限（写真の合計上限と同じ）
+    if (!input || !fishInput) return;
+
+    function setStatus(text, isError) {
+      status.textContent = text;
+      status.classList.toggle("is-error", !!isError);
+    }
+
+    function selected() {
+      return input.files ? Array.prototype.slice.call(input.files) : [];
+    }
+
+    // 「発見できた魚」欄の名前の一覧。以前の「, 」区切りのデータも読めるように、空白・カンマ・読点で分ける
+    function currentNames() {
+      return fishInput.value.split(/[\s,、，]+/).filter(Boolean);
+    }
+
+    // 名前に空白が入っていると区切りと見分けられないので、取り除いてから使う
+    function clean(name) {
+      return String(name).replace(/\s+/g, "");
+    }
+
+    function addFish(name) {
+      var names = currentNames();
+      if (names.indexOf(name) === -1) names.push(name);
+      fishInput.value = names.join(" ");  // 半角スペース区切り
+    }
+
+    function markAdded(chip) {
+      chip.classList.add("is-added");
+      chip.disabled = true;
+      chip.textContent = "✓ " + chip.dataset.name;
+    }
+
+    function showCandidates(list) {
+      chips.innerHTML = "";
+      var already = currentNames();
+      list.forEach(function (name) {
+        var chip = document.createElement("button");
+        chip.type = "button";
+        chip.className = "tag fish-chip";
+        chip.dataset.name = name;
+        chip.textContent = "+ " + name;  // textContent なので、名前に HTML が含まれていても安全
+        if (already.indexOf(name) !== -1) markAdded(chip);
+        chip.addEventListener("click", function () {
+          addFish(name);
+          markAdded(chip);
+        });
+        chips.appendChild(chip);
+      });
+      result.hidden = false;
+    }
+
+    function refresh() {
+      var n = selected().length;
+      result.hidden = true;
+      chips.innerHTML = "";
+      btn.disabled = n === 0;
+      if (n === 0) setStatus("新しく写真を選ぶと識別できます");
+      else if (n > MAX_IDENTIFY) setStatus("ボタンを押すと、最初の " + MAX_IDENTIFY + " 枚に写っている魚を AI が探します");
+      else setStatus("ボタンを押すと、" + (n > 1 ? n + " 枚の写真" : "写真") + "に写っている魚を AI が探します");
+    }
+
+    // 1 枚を送って結果を受け取る。エラーのときも JSON（{"error": "..."}）が返ってくる想定
+    function identify(file) {
+      var body = new FormData();
+      body.append("photo", file);
+      return fetch(box.dataset.url, {
+        method: "POST",
+        headers: { "X-CSRFToken": csrf },
+        body: body,
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (data) {
+          return { ok: res.ok, status: res.status, data: data };
+        });
+      });
+    }
+
+    function errorMessage(r) {
+      return r.data.error ||
+        (r.status === 429 ? "識別の利用上限に達しました。時間をおいて試すか、手入力してください。"
+                          : "識別に失敗しました。手入力してください。");
+    }
+
+    // 選択が変わったらボタンの状態を切り替える（写真欄の処理の後に動くように、このスクリプトは最後に置く）
+    input.addEventListener("change", refresh);
+    input.addEventListener("photos:updated", refresh);
+
+    btn.addEventListener("click", function () {
+      var files = selected().slice(0, MAX_IDENTIFY);
+      if (!files.length) return;
+
+      var found = [];
+      var failure = null;
+      var i = 0;
+      btn.disabled = true;
+      result.hidden = true;
+
+      // 写真を 1 枚ずつ順番に送る（同時に送ると、無料枠の 1 分あたりの上限にかかりやすい）
+      function next() {
+        if (i >= files.length) return Promise.resolve();
+        setStatus((files.length > 1 ? (i + 1) + " / " + files.length + " 枚目を" : "") + "識別しています…（数秒かかります）");
+        return identify(files[i]).then(function (r) {
+          i += 1;
+          if (!r.ok) {
+            failure = errorMessage(r);
+            if (r.status === 429) return;  // 上限に達したら、残りの写真は送らない
+            return next();
+          }
+          (Array.isArray(r.data.fish) ? r.data.fish : []).forEach(function (name) {
+            name = clean(name);
+            if (name && found.indexOf(name) === -1) found.push(name);
+          });
+          return next();
+        });
+      }
+
+      next()
+        .then(function () {
+          if (found.length) {
+            setStatus(found.length + " 件見つかりました" + (failure ? "（一部の写真は識別できませんでした: " + failure + "）" : ""), !!failure);
+            showCandidates(found);
+          } else if (failure) {
+            setStatus(failure, true);
+          } else {
+            setStatus("魚を見つけられませんでした。手入力してください。");
+          }
+        })
+        .catch(function () {
+          setStatus("通信に失敗しました。接続を確認してください。", true);
+          if (found.length) showCandidates(found);
+        })
+        .finally(function () {
+          btn.disabled = selected().length === 0;
+        });
+    });
+
+    addAll.addEventListener("click", function () {
+      chips.querySelectorAll(".fish-chip:not(.is-added)").forEach(function (chip) {
+        addFish(chip.dataset.name);
+        markAdded(chip);
+      });
+    });
+  })();
+</script>
 {% endblock %}

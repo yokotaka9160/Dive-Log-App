@@ -160,3 +160,6 @@ MEDIA_ROOT = BASE_DIR / "media"  # アップロードされたメディアファ
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+GEMINI_API_KEY = env("GEMINI_API_KEY", default=None)  # Google Gemini API の API キーを環境変数から取得
+GEMINI_MODEL = env("GEMINI_MODEL", default="gemini-3.5-flash")  # Google Gemini API のモデルを環境変数から取得

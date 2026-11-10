@@ -4,3 +4,5 @@ Pillow>=12.0
 gunicorn>=23.0
 whitenoise>=6.7
 psycopg[binary]>=3.2
+google-genai>=3.00
+

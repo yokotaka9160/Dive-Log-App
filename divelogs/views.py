@@ -16,9 +16,14 @@ from django.views.generic import (
     TemplateView,
 )
 
-from .forms import DiveLogForm, SignUpForm, DiveLogFilterForm
+from .forms import DiveLogForm, DiveLogFilterForm
 from .models import DiveLog
 from datetime import timedelta
+from django.views.decorators.http import require_POST
+from google import genai
+from google.genai import errors, types
+from django.http import JsonResponse
+from django.conf import settings
 
 # 並び替えの選択肢: キー -> (ラベル, order_by 引数)
 SORT_FIELDS = {
@@ -202,33 +207,20 @@ class LogDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
         return super().form_valid(form)
 
 
-# @login_required
-# def toggle_favorite(request, pk):
-#     """お気に入りの登録/解除。"""
-#     if request.method != "POST":
-#         return redirect("log_detail", pk=pk)
-#     log = get_object_or_404(DiveLog, pk=pk)
-#     if log.favorites.filter(pk=request.user.pk).exists():
-#         log.favorites.remove(request.user)
+
+# def signup(request):
+#     if request.user.is_authenticated:
+#         return redirect("log_list")
+#     if request.method == "POST":
+#         form = SignUpForm(request.POST)
+#         if form.is_valid():
+#             user = form.save()
+#             login(request, user)
+#             messages.success(request, "ようこそ、DEEPLOG へ。")
+#             return redirect("log_list")
 #     else:
-#         log.favorites.add(request.user)
-#     next_url = request.POST.get("next") or log.get_absolute_url()
-#     return redirect(next_url)
-
-
-def signup(request):
-    if request.user.is_authenticated:
-        return redirect("log_list")
-    if request.method == "POST":
-        form = SignUpForm(request.POST)
-        if form.is_valid():
-            user = form.save()
-            login(request, user)
-            messages.success(request, "ようこそ、DEEPLOG へ。")
-            return redirect("log_list")
-    else:
-        form = SignUpForm()
-    return render(request, "registration/register.html", {"form": form})
+#         form = SignUpForm()
+#     return render(request, "registration/register.html", {"form": form})
 
 class DashboardView(LoginRequiredMixin, TemplateView):  # ログイン必須の、テンプレートを表示するだけのビュー
     template_name = "logs/dashboard.html"  # 表示に使うテンプレート
@@ -281,3 +273,54 @@ class DashboardView(LoginRequiredMixin, TemplateView):  # ログイン必須の�
             "bottom_temp": [log.w_bottom_temp for log in ordered],  # 折れ線: 水底温度
         }
         return context  # 用意した context をテンプレートに渡す
+
+PROMPT = """あなたは魚の種類を推定する専門家です。以下の条件に従って、アップロードされた画像に写っている魚の種類を推定してください。
+条件:
+1. 画像に写っている海の生物の名前をできるだけ正確に推定して、日本語の和名（カタカナ）で返してください。
+2. 推定結果は名前のみを、１つづつリスト要素として返してください
+3. 推定結果に余計な説明や文章は含めず、魚の名前のみを返してください。
+4. 画像に海の生物が写っていない場合は、空のリスト を返してください。
+5. 自信が無ければ何も返さないでください
+"""
+
+@login_required
+@require_POST
+def IdentifyFishView(request):
+    """アップロードされた写真を解析し、魚の種類を推定するビュー。"""
+    photo = request.FILES.get("photo")
+    if not photo:
+        return JsonResponse({"error": "画像がアップロードされていません。"}, status=400)
+    if not photo.content_type.startswith("image/"):
+        return JsonResponse({"error": "アップロードされたファイルは画像ではありません。"}, status=400)
+    if photo.size > 10 * 1024 * 1024:  # 10MBの制限
+        return JsonResponse({"error": "画像のサイズは10MB以下にしてください。"}, status=400)
+    try:
+        # Google Gemini API を使用して画像解析を行う
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=[
+                types.Part.from_bytes(data=photo.read(), mime_type=photo.content_type),
+            PROMPT,  
+            ],
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=list[str],  # 返却される JSON の形式を指定
+            ),
+        )
+        names = response.parsed or []  # 解析結果を取得。解析できなかった場合は空リスト
+    except errors.APIError as e:
+        print(e)
+        if e.code == 429:
+            return JsonResponse({"error": "画像解析のリクエストが多すぎます。しばらく待ってから再度お試しください。"}, status=429)
+        return JsonResponse({"error": f"画像解析中にエラーが発生しました"}, status=502)
+
+    # AI の返事を整える（空白を取る・空と重複を除く・最大5件）
+    fish_list = []
+    for name in names:
+        name = name.strip()
+        if not name or name in fish_list:
+            continue
+        fish_list.append(name)
+
+    return JsonResponse({"fish": fish_list})

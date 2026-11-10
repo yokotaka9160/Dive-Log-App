@@ -198,6 +198,7 @@ class DiveLog(models.Model):
     photo = models.ImageField(
         upload_to='dive_log_photos/',  # 画像の保存先ディレクトリ
         blank=True,
+        null=True,
         verbose_name=_("写真")
     )
 
@@ -205,7 +206,12 @@ class DiveLog(models.Model):
     class Meta:
         verbose_name = _("ダイブログ")#管理画面などで表示される、このモデルの「単数形」の名前
         verbose_name_plural = _("ダイブログ")#管理画面などで表示される、このモデルの「複数形」の名前
-        ordering = ['-dive_date'] # このモデルのデータを取得したときの デフォルトの並び順 
+        ordering = ['id'] # このモデルのデータを取得したときの デフォルトの並び順 
     #DiveLogモデルを文字列として表示する時の返り値
     def __str__(self):
         return f"{self.dive_date} - {self.dive_point_name}"
+
+class DiveLogPhoto(models.Model):
+    log = models.ForeignKey(DiveLog, on_delete=models.CASCADE, related_name='photos')
+    image = models.ImageField(upload_to='dive_log_photos/')
+    created_at = models.DateTimeField(auto_now_add=True)

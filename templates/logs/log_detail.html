@@ -15,13 +15,36 @@
 
 <div class="detail-grid">
   <div>
-    {% if log.photo %}
-      <a href="{{ log.photo.url }}" target="_blank" rel="noopener" class="detail-media" title="元のサイズで開く">
-        <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真">
-      </a>
-    {% else %}
-      <div class="detail-media placeholder">◒</div>
-    {% endif %}
+    {% comment %}
+      写真は「複数枚（log.photos）→ 今までの 1 枚（log.photo）→ プレースホルダー」の順で表示する。
+      バックエンドに DiveLogPhoto（related_name="photos"）ができるまでは log.photos が空になり、今までどおり 1 枚の表示になる。
+    {% endcomment %}
+    {% with photos=log.photos.all %}
+      {% if photos %}
+        <div class="gallery">
+          <a href="{{ photos.0.image.url }}" target="_blank" rel="noopener" class="detail-media gallery-main" id="gallery-main" title="元のサイズで開く">
+            <img src="{{ photos.0.image.url }}" alt="{{ log.location }}の写真 1">
+          </a>
+          {% if photos|length > 1 %}
+            <div class="gallery-thumbs" role="list">
+              {% for p in photos %}
+                <button type="button" class="gallery-thumb{% if forloop.first %} is-active{% endif %}" role="listitem"
+                        data-src="{{ p.image.url }}" data-index="{{ forloop.counter }}"
+                        aria-label="写真 {{ forloop.counter }} を表示">
+                  <img src="{{ p.image.url }}" alt="" loading="lazy">
+                </button>
+              {% endfor %}
+            </div>
+          {% endif %}
+        </div>
+      {% elif log.photo %}
+        <a href="{{ log.photo.url }}" target="_blank" rel="noopener" class="detail-media" title="元のサイズで開く">
+          <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真">
+        </a>
+      {% else %}
+        <div class="detail-media placeholder">◒</div>
+      {% endif %}
+    {% endwith %}
 
     {% if log.fish %}
       <div class="tag-row" style="margin-top:20px;">
@@ -172,4 +195,23 @@
         <a href="{% url 'divelogs:log_delete' log.pk %}" class="btn btn-danger">削除</a>
       </div>
     {% endif %}
+
+<script>
+  // ギャラリー：サムネイルを押すと、大きい写真を切り替える
+  (function () {
+    var main = document.getElementById("gallery-main");
+    if (!main) return;
+    var img = main.querySelector("img");
+    var base = img.alt.replace(/ \d+$/, "");
+    document.querySelectorAll(".gallery-thumb").forEach(function (thumb) {
+      thumb.addEventListener("click", function () {
+        img.src = thumb.dataset.src;
+        img.alt = base + " " + thumb.dataset.index;
+        main.href = thumb.dataset.src;
+        document.querySelectorAll(".gallery-thumb.is-active").forEach(function (t) { t.classList.remove("is-active"); });
+        thumb.classList.add("is-active");
+      });
+    });
+  })();
+</script>
 {% endblock %}

@@ -138,13 +138,24 @@
   <div class="grid">
     {% for log in logs %}
       <article class="card">
-        <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not log.photo %}placeholder{% endif %}">
-          {% if log.photo %}
-            <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真" loading="lazy">
-          {% else %}
-            <span>◒</span>
-          {% endif %}
-        </a>
+        {% comment %}
+          表紙は「複数枚の 1 枚目（log.photos）→ 今までの 1 枚（log.photo）」の順。
+          1 行ごとに写真のクエリが走らないように、ビューで prefetch_related("photos") しておく想定。
+        {% endcomment %}
+        {% with photos=log.photos.all %}
+          {% with cover=photos.0 %}
+            <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not cover and not log.photo %}placeholder{% endif %}">
+              {% if cover %}
+                <img src="{{ cover.image.url }}" alt="{{ log.location }}の写真" loading="lazy">
+                {% if photos|length > 1 %}<span class="card-photo-count">{{ photos|length }} 枚</span>{% endif %}
+              {% elif log.photo %}
+                <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真" loading="lazy">
+              {% else %}
+                <span>◒</span>
+              {% endif %}
+            </a>
+          {% endwith %}
+        {% endwith %}
         <div class="card-body">
           <div>
             <h2 class="card-title"><a href="{% url 'divelogs:log_detail' log.pk %}">{{ log.location }}</a></h2>

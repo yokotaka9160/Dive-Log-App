@@ -13,6 +13,7 @@ urlpatterns = [
     path("logs/<int:pk>/edit/", views.LogUpdateView.as_view(), name="log_update"),
     path("logs/<int:pk>/delete/", views.LogDeleteView.as_view(), name="log_delete"),
     path("dashboard/", views.DashboardView.as_view(), name="dashboard"),
+    path("logs/identify_fish/", views.IdentifyFishView, name="identify_fish"),
     #path("logs/<int:pk>/favorite/", views.toggle_favorite, name="toggle_favorite"),
     # 認証
     # path("signup/", views.signup, name="register"),

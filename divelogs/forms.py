@@ -6,17 +6,31 @@ from .models import DiveLog
 
 User = get_user_model()
 
-class SignUpForm(UserCreationForm):
-    """メールアドレス任意のユーザー登録フォーム。"""
+MAX_PHOTO_BYTES = 10 * 1024 * 1024   # 1枚の上限（10MB）
+MAX_PHOTOS = 10                      # 1つのログの写真の上限
 
-    email = forms.EmailField(label="メールアドレス", required=False)
+class MultipleFileInput(forms.ClearableFileInput):
+        allow_multiple_selected = True
 
-    class Meta(UserCreationForm.Meta):
-        model = User
-        fields = ("username", "email")
+class MultipleImageField(forms.ImageField):
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault("widget", MultipleFileInput())
+        super().__init__(*args, **kwargs)
 
-
+    def clean(self, data, initial=None):
+        single_file = super().clean
+        if isinstance(data, (list, tuple)):
+            return [single_file(d, initial) for d in data]
+        return single_file(data, initial)
+        
 class DiveLogForm(forms.ModelForm):
+    
+    photos = MultipleImageField(
+    required=False,
+    widget=MultipleFileInput(attrs={"accept": "image/*"}),
+    label="写真",
+    )
+
     class Meta:
         model = DiveLog
         fields = [
@@ -46,7 +60,6 @@ class DiveLogForm(forms.ModelForm):
             "fish",
             "free_text_field",
             "suit_type",
-            "photo",
         ]
         widgets = {
             "dive_date": forms.DateInput(attrs={"type": "date"}),
@@ -56,14 +69,16 @@ class DiveLogForm(forms.ModelForm):
             "fish": forms.TextInput(
                 attrs={"placeholder": "例: マンタ, ウミガメ, カクレクマノミ"}
             ),
-            "photo": forms.ClearableFileInput(attrs={"accept": "image/*"}),  # 画像ファイルのみを受け入れる
         }
-    def clean_photo(self):
-        photo = self.cleaned_data.get("photo")
-        if photo:
-            if photo.size > 10 * 1024 * 1024:  # 10MBの制限
-                raise forms.ValidationError("画像のサイズは10MB以下にしてください。")
-        return photo
+
+    def clean_photos(self):
+        photos = self.cleaned_data.get("photos") or []
+        for photo in photos:
+            if photo.size > MAX_PHOTO_BYTES:
+                raise forms.ValidationError(
+                    f"1枚の写真のサイズは10MB以下にしてください。{photo.name}は{photo.size / (1024 * 1024):.2f}MBです。"
+                )
+        return photos
 
 def with_all(choices):
     """全ての選択肢を含むタプルを返す。"""
