@@ -16,6 +16,9 @@ from django.views.generic import (
     TemplateView,
 )
 
+import re
+from collections import Counter
+
 from django.db import transaction
 
 from .forms import DiveLogForm, DiveLogFilterForm
@@ -273,17 +276,58 @@ class DashboardView(LoginRequiredMixin, TemplateView):  # ログイン必須の�
         context["max_depth"] = stats["max_depth"]  # 過去最大深度
         context["max_ave_depth"] = stats["max_ave_depth"]  # 過去最大平均深度
 
-        # --- 月別潜水本数 ---
+        # --- 月別潜水本数（潜らなかった月も 0 本として表示する） ---
         monthly = (
             logs.annotate(month=TruncMonth("dive_date"))  # 潜水日を「月の初日」に切り捨てた値を month として付ける
             .values("month")  # month ごとにグループ化する
             .annotate(count=Count("id"))  # グループごとの件数を count として数える
             .order_by("month")  # 月の古い順に並べる
         )
+        counts = {(row["month"].year, row["month"].month): row["count"] for row in monthly}  # {(年, 月): 本数} の辞書。DB には潜った月しかない
+        first = min(counts)  # 最初に潜った月 (年, 月)
+        last = max(counts)  # 最後に潜った月 (年, 月)
+        month_labels, month_values = [], []
+        year, month = first
+        while (year, month) <= last:  # 最初の月から最後の月まで、1か月ずつ進める
+            month_labels.append(f"{year}/{month:02d}")  # 横軸のラベル（例: 2026/01）
+            month_values.append(counts.get((year, month), 0))  # 辞書にない月（潜っていない月）は 0 本
+            year, month = (year + 1, 1) if month == 12 else (year, month + 1)  # 12 月の次は翌年の 1 月
         context["monthly_chart"] = {  # 月別グラフ用のデータ
-            "labels": [row["month"].strftime("%Y/%m") for row in monthly],  # 横軸のラベル（例: 2026/11）
-            "values": [row["count"] for row in monthly],  # 棒の高さ（その月の本数）
+            "labels": month_labels,
+            "values": month_values,
         }
+
+        # --- 潜った場所の地図（ダイビングショップの場所を、潜った場所の目安として使う） ---
+        places = {}  # {場所の名前: 地図に出す情報}
+        for log in ordered:  # 潜った順に見ていく
+            if not log.has_shop_location:  # ショップの場所がないログは地図に出せない
+                continue
+            place = places.setdefault(log.location or "（場所未入力）", {  # 同じ場所は 1 つの印にまとめる
+                "name": log.location or "（場所未入力）",
+                "lat": log.dive_shop_lat,
+                "lng": log.dive_shop_lng,
+                "count": 0,
+                "points": [],
+                "shops": [],
+                "last_date": "",
+            })
+            place["count"] += 1  # その場所で潜った本数
+            if log.dive_point_name and log.dive_point_name not in place["points"]:
+                place["points"].append(log.dive_point_name)  # 潜ったポイント（重複なし）
+            if log.dive_shop_name and log.dive_shop_name not in place["shops"]:
+                place["shops"].append(log.dive_shop_name)  # 利用したショップ（重複なし）
+            place["last_date"] = log.dive_date.strftime("%Y/%m/%d")  # 潜った順に上書きするので、最後に潜った日が残る
+        context["dive_map"] = sorted(places.values(), key=lambda p: -p["count"])  # 本数の多い順
+        context["dive_map_missing"] = sum(1 for log in ordered if not log.has_shop_location)  # 地図に出せなかった本数
+
+        # --- 発見できた魚のワードクラウド（名前ごとの出現回数） ---
+        fish_counter = Counter()
+        for log in ordered:
+            # 半角・全角スペース、カンマ、読点のどれで区切っていても分けられるようにする
+            for name in re.split(r"[\s,、，]+", log.fish or ""):
+                if name:
+                    fish_counter[name] += 1
+        context["fish_cloud"] = [[name, count] for name, count in fish_counter.most_common(80)]  # 多い順に最大 80 種類 [名前, 回数]
 
         # --- ダイブ目的の内訳（DB の値ではなく画面表示用のラベルにする） ---
         purpose_labels = dict(DiveLog.DivePurpose.choices)  # 選択肢を {DB の値: 表示名} の辞書にする
@@ -295,8 +339,11 @@ class DashboardView(LoginRequiredMixin, TemplateView):  # ログイン必須の�
 
         # --- 推移グラフ（1本ごと） ---
         context["trend_chart"] = {  # 推移グラフ用のデータ（どのリストも ordered と同じ順番・同じ件数）
-            "labels": [f"{i}本目" for i in range(1, len(ordered) + 1)],  # 横軸のラベル（1本目, 2本目, …）
+            "labels": [f"{log.dive_date.month}/{log.dive_date.day}" for log in ordered],  # 横軸のラベル（月/日。例: 11/3）
+            "months": [log.dive_date.strftime("%Y/%m") for log in ordered],  # 何年何月のダイブか（横軸で月の区切りを表示するのに使う）
+            "numbers": list(range(1, len(ordered) + 1)),  # 何本目か（ツールチップに出す）
             "dates": [log.dive_date.strftime("%Y/%m/%d") for log in ordered],  # ツールチップに出す潜水日
+            "transparency": [log.transparency for log in ordered],  # 透明度の推移グラフ: 透明度（m）
             "pressure_used": [log.start_press - log.end_press for log in ordered],  # 棒グラフ: タンク残圧（開始時−終了時）
             "max_depth": [log.max_depth for log in ordered],  # 折れ線: 最大深度
             "ave_depth": [log.ave_depth for log in ordered],  # 折れ線: 平均深度

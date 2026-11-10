@@ -151,14 +151,6 @@
     <div class="value">{{ log.transparency|default:"—" }}<span class="unit">m</span></div>
   </div>
   <div class="cell">
-    <div class="label">{{ form.start_press.label }}</div>
-    <div class="value">{{ log.start_press|default:"—" }}<span class="unit"></span></div>
-  </div>
-  <div class="cell">
-    <div class="label">{{ form.end_press.label }}</div>
-    <div class="value">{{ log.end_press|default:"—" }}<span class="unit"></span></div>
-  </div>
-  <div class="cell">
     <div class="label">{{ form.ave_depth.label }}</div>
     <div class="value">{{ log.ave_depth|default:"—" }}<span class="unit">m</span></div>
   </div>
@@ -199,6 +191,13 @@
   <div class="cell">
     <div class="label">{{ form.inst_name.label }}</div>
     <div class="value">{{ log.inst_name|default:"—" }}</div>
+  </div>
+</div>
+
+<div class="readout" style="display: grid; grid-template-columns: 1fr; gap: 12px; margin-top: 20px;">
+  <div class="cell">
+    <div class="label">{{ form.dive_shop_name.label }}</div>
+    <div class="value">{{ log.dive_shop_name|default:"—" }}</div>
   </div>
 </div>
 

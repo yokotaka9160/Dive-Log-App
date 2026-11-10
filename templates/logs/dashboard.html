@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}潜水ログ可視化ダッシュボード{% endblock %}
+{% block extra_head %}{% if total_logs %}{% include "logs/_map_assets.html" with mode="css" %}{% endif %}{% endblock %}
 
 {% block content %}
 <style>
@@ -7,15 +8,52 @@
   @media (max-width: 720px) { .dash-kpis { grid-template-columns: repeat(2, 1fr); } }
   .dash-charts { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   .dash-charts .wide { grid-column: 1 / -1; }
+  .dash-charts > * { min-width: 0; }  /* 中身（横に広いグラフ）に合わせてカードが広がらないようにする。広い分は .chart-scroll の中でスクロールする */
   @media (max-width: 720px) { .dash-charts { grid-template-columns: 1fr; } }
   .chart-title { font-size: 15px; margin: 0 0 12px; }
   .chart-canvas { position: relative; height: 260px; }
   .chart-canvas.trend { height: 420px; }
   @media (max-width: 720px) { .chart-canvas.trend { height: 360px; } }
+  .chart-canvas.short { height: 280px; }
+
+  /* 横にスクロールできるグラフ（ダイブの本数に合わせてグラフを横に広げ、枠の中でスクロールする） */
+  .chart-scroll { overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; }
+  .chart-scroll .chart-canvas { min-width: 100%; }
+  .chart-scroll-hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; text-align: center; }
+  .chart-box.is-empty .chart-scroll, .chart-box.is-empty .chart-scroll-hint, .chart-box.is-empty .chart-legend { display: none; }
+
+  /* 推移グラフの凡例（グラフの外に置き、スクロールしても見えるようにする） */
+  .chart-legend { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 14px; list-style: none; margin: 12px 0 0; padding: 0; }
+  .chart-legend button {
+    display: inline-flex; align-items: center; gap: 8px; background: none; border: 0; padding: 4px 2px; cursor: pointer;
+    color: var(--muted); font: inherit; font-size: 12px;
+  }
+  .chart-legend button.is-off { opacity: .4; text-decoration: line-through; }
+  .chart-legend .swatch { width: 28px; height: 0; border-top: 3px solid currentColor; }
+  .chart-legend .swatch.dashed { border-top-style: dashed; }
+  .chart-legend .swatch.rect { width: 14px; height: 12px; border: 0; border-radius: 2px; background: currentColor; }
   .chart-note { color: var(--muted); font-size: 12px; margin: -6px 0 12px; }
   .chart-empty { display: none; color: var(--muted); font-size: 14px; text-align: center; padding: 96px 0; margin: 0; }
-  .chart-box.is-empty .chart-canvas { display: none; }
+  .chart-box.is-empty .chart-canvas, .chart-box.is-empty .dash-map, .chart-box.is-empty .fish-cloud-wrap { display: none; }
   .chart-box.is-empty .chart-empty { display: block; }
+
+  /* 潜った場所の地図 */
+  .dash-map { height: 380px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+  @media (max-width: 720px) { .dash-map { height: 300px; } }
+  .dash-map-popup { font-family: inherit; min-width: 160px; }
+  .dash-map-popup strong { display: block; font-size: 14px; margin-bottom: 4px; }
+  .dash-map-popup p { margin: 2px 0; font-size: 12px; }
+
+  /* 発見できた魚のワードクラウド */
+  .fish-cloud-wrap { position: relative; }
+  .fish-cloud { width: 100%; height: 320px; display: block; }
+  .fish-cloud-tip {
+    position: absolute; pointer-events: none; font-size: 12px; padding: 4px 10px; border-radius: 999px;
+    background: rgba(5, 20, 28, .9); border: 1px solid var(--border); color: var(--text); white-space: nowrap;
+    transform: translate(-50%, -130%);
+  }
+  .fish-top { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; font-size: 12px; color: var(--muted); }
+  .fish-top b { color: var(--text); font-weight: 500; }
 </style>
 
 <div class="page-head">
@@ -58,10 +96,48 @@
       <div class="chart-canvas"><canvas id="purpose-chart" aria-label="ダイブ目的の内訳"></canvas></div>
       <p class="chart-empty">データがありません</p>
     </section>
+
+    <section class="card-panel chart-box wide" id="map-box">
+      <h2 class="chart-title">潜った場所</h2>
+      <p class="chart-note">
+        利用したダイビングショップの場所に、潜った場所ごとの印を表示しています。印が大きいほど本数が多く、クリックすると詳細が見られます。
+        {% if dive_map_missing %}（ショップの場所が未登録の {{ dive_map_missing }} 本は表示していません）{% endif %}
+      </p>
+      <div class="dash-map map-dark" id="dive-map" role="img" aria-label="潜った場所の地図"></div>
+      <p class="chart-empty">ショップの場所が登録されたログがありません</p>
+    </section>
+
+    <section class="card-panel chart-box wide" id="fish-box">
+      <h2 class="chart-title">発見できた魚</h2>
+      <p class="chart-note">たくさん見た魚ほど大きく表示しています。文字にマウスを乗せると回数が分かります。</p>
+      <div class="fish-cloud-wrap">
+        <canvas class="fish-cloud" id="fish-cloud" aria-label="発見できた魚のワードクラウド"></canvas>
+        <span class="fish-cloud-tip" id="fish-cloud-tip" hidden></span>
+      </div>
+      {% if fish_cloud %}
+        <ul class="fish-top" aria-label="よく見た魚">
+          {% for name, count in fish_cloud|slice:":5" %}
+            <li>{{ forloop.counter }}. <b>{{ name }}</b> {{ count }}回</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      <p class="chart-empty">発見できた魚が記録されていません</p>
+    </section>
+
     <section class="card-panel chart-box wide">
       <h2 class="chart-title">推移グラフ</h2>
-      <p class="chart-note">凡例をクリックすると、項目ごとに表示・非表示を切り替えられます。</p>
-      <div class="chart-canvas trend"><canvas id="trend-chart" aria-label="タンク残圧・深度・潜水時間・水底温度の推移"></canvas></div>
+      <p class="chart-note">横軸の上の段が潜った日、下の段が年/月です。縦の線が月の区切りです。凡例をクリックすると、項目ごとに表示・非表示を切り替えられます。</p>
+      <div class="chart-scroll"><div class="chart-canvas trend"><canvas id="trend-chart" aria-label="タンク残圧・深度・潜水時間・水底温度の推移"></canvas></div></div>
+      <p class="chart-scroll-hint" hidden>← 横にスクロールすると、ほかの時期も見られます</p>
+      <ul class="chart-legend" id="trend-legend" aria-label="表示する項目"></ul>
+      <p class="chart-empty">データがありません</p>
+    </section>
+
+    <section class="card-panel chart-box wide">
+      <h2 class="chart-title">透明度の推移</h2>
+      <p class="chart-note">横軸の上の段が潜った日、下の段が年/月です。縦の線が月の区切りです。</p>
+      <div class="chart-scroll"><div class="chart-canvas short"><canvas id="transparency-chart" aria-label="透明度の推移"></canvas></div></div>
+      <p class="chart-scroll-hint" hidden>← 横にスクロールすると、ほかの時期も見られます</p>
       <p class="chart-empty">データがありません</p>
     </section>
   </div>
@@ -69,24 +145,43 @@
   {{ monthly_chart|json_script:"monthly-data" }}
   {{ purpose_chart|json_script:"purpose-data" }}
   {{ trend_chart|json_script:"trend-data" }}
+  {{ dive_map|json_script:"map-data" }}
+  {{ fish_cloud|json_script:"fish-data" }}
+{% else %}
+  <div class="empty">
+    まだダイブログがありません。記録すると、ここに分析結果が表示されます。
+    <div style="margin-top:20px;">
+      <a href="{% url 'divelogs:log_create' %}" class="btn btn-accent">＋ 新しいダイブログ</a>
+    </div>
+  </div>
+{% endif %}
+{% endblock %}
 
+{% block extra_js %}
+{% if total_logs %}
+  {% include "logs/_map_assets.html" with mode="js" %}
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.3/src/wordcloud2.js"
+          integrity="sha384-u5MoeP7iId/1yQx8f8/zcqsP99YhxCZvFoH6oeDF83VKVEr453M7FTJwkVy6b0Jo" crossorigin="anonymous"></script>
   <script>
     (function () {  // 変数がページ全体に漏れないよう、処理全体を関数で囲んですぐ実行する
-      // 月別・目的別グラフのデータを、json_script が出力した script タグから読み出す
-      function readData(id) {
+      // json_script が出力した script タグから、データを読み出す（読めなければ null）
+      function readJson(id) {
         var el = document.getElementById(id);  // 指定した id の script タグを探す
         if (!el) return null;  // タグがなければデータなしとする
-        try {
-          var d = JSON.parse(el.textContent);  // タグの中身（JSON 文字列）を JavaScript のオブジェクトに変換する
-          if (d && Array.isArray(d.labels) && Array.isArray(d.values) && d.labels.length) return d;  // labels と values が配列で、1件以上あれば使う
-        } catch (e) {}  // JSON として読めなかった場合は何もしない
+        try { return JSON.parse(el.textContent); } catch (e) { return null; }  // JSON として読めなかった場合は null
+      }
+
+      // 月別・目的別グラフのデータを読み出す（labels と values が 1 件以上あれば使う）
+      function readData(id) {
+        var d = readJson(id);
+        if (d && Array.isArray(d.labels) && Array.isArray(d.values) && d.labels.length) return d;
         return null;  // 使えるデータがない場合は null を返す
       }
 
       // データがないとき、グラフの代わりに「データがありません」を表示する
-      function markEmpty(canvas) {
-        canvas.closest(".chart-box").classList.add("is-empty");  // 親の .chart-box に is-empty を付け、CSS で表示を切り替える
+      function markEmpty(el) {
+        el.closest(".chart-box").classList.add("is-empty");  // 親の .chart-box に is-empty を付け、CSS で表示を切り替える
       }
 
       var css = getComputedStyle(document.documentElement);  // style.css で定義した CSS 変数を読むため、ページ全体のスタイルを取得する
@@ -95,6 +190,7 @@
       var muted = css.getPropertyValue("--muted").trim();  // 薄い文字色
       var border = css.getPropertyValue("--border").trim();  // 枠線・補助線の色
       var surface = css.getPropertyValue("--surface").trim();  // カードの背景色
+      var text = css.getPropertyValue("--text").trim();  // 通常の文字色
 
       // グラフを1つ描く共通処理（canvas の id、データの id、グラフ設定を作る関数を受け取る）
       function draw(canvasId, dataId, build) {
@@ -114,12 +210,18 @@
         Chart.defaults.maintainAspectRatio = false;  // 縦横比を固定せず、.chart-canvas の高さに合わせる
       }
 
-      // 月別潜水本数（棒グラフ）
+      // 月別潜水本数（棒グラフ）。潜らなかった月は、バックエンドで 0 本として入っている
       draw("monthly-chart", "monthly-data", function (d) {
         return {
           type: "bar",  // 棒グラフ
-          data: { labels: d.labels, datasets: [{ label: "本数", data: d.values, backgroundColor: accent, borderRadius: 6 }] },  // 横軸 = 月、棒の高さ = 本数
-          options: { plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } }  // 凡例は非表示、縦軸は0から始めて整数だけ表示する
+          data: { labels: d.labels, datasets: [{ label: "本数", data: d.values, backgroundColor: accent, borderRadius: 6, minBarLength: 0 }] },  // 横軸 = 月、棒の高さ = 本数
+          options: {
+            plugins: { legend: { display: false } },  // 凡例は非表示
+            scales: {
+              x: { ticks: { maxRotation: 0, autoSkipPadding: 8 } },  // 月のラベルを斜めにせず、重なるときは間引く
+              y: { beginAtZero: true, ticks: { precision: 0 } }  // 縦軸は0から始めて整数だけ表示する
+            }
+          }
         };
       });
 
@@ -132,13 +234,157 @@
         };
       });
 
+      /* ---------------- 推移グラフ・透明度の推移で共通の「月日」の横軸 ---------------- */
+      var trend = readJson("trend-data");  // 推移グラフのデータ（labels = 月/日、months = 年/月）
+      var hasTrend = trend && Array.isArray(trend.labels) && trend.labels.length && typeof Chart !== "undefined";
+
+      // i 本目が、その月の最初のダイブか（= 前のダイブと月が違うか）
+      function isMonthStart(i) {
+        return i === 0 || trend.months[i] !== trend.months[i - 1];
+      }
+
+      // 1本あたりの幅が MIN_PER_DIVE px 未満になるほど枠が狭い（スマホなど）ときだけ、
+      // グラフの幅を「1本あたり PER_DIVE px ＋ 縦軸の分」に広げ、枠の中で横にスクロールする
+      var MIN_PER_DIVE = 26;  // これより狭いと、日のラベルが重なって間引かれ、年/月も読めなくなる
+      var PER_DIVE = 34;      // スクロールするときの 1本分の幅。日のラベル（2 桁）と、2 本以上の月の「2026/8」が入る幅
+      function fitScroll(canvas, axesWidth) {
+        var inner = canvas.parentElement;           // .chart-canvas（この幅を広げる）
+        var scroller = inner.parentElement;         // .chart-scroll（スクロールする枠）
+        var hint = scroller.nextElementSibling;     // 「横にスクロールすると…」の案内
+        function apply(first) {
+          var n = trend.labels.length;
+          var scrollable = n * MIN_PER_DIVE + axesWidth > scroller.clientWidth;
+          inner.style.width = scrollable ? (n * PER_DIVE + axesWidth) + "px" : "";  // 枠に収まるときは、枠の幅いっぱいのまま
+          hint.hidden = !scrollable;
+          if (first && scrollable) scroller.scrollLeft = scroller.scrollWidth;  // 最初は右端（いちばん新しいダイブ）を表示する
+        }
+        apply(true);
+        // 画面の幅が変わったら幅を計算し直す（グラフ自体は Chart.js が枠の大きさに合わせて描き直す）
+        window.addEventListener("resize", function () { apply(false); });
+      }
+
+      // 推移グラフの凡例を、グラフの外に HTML で作る（横にスクロールしても凡例が見えるように）。
+      // クリックすると、その項目の表示・非表示を切り替える
+      function htmlLegend(chart, list) {
+        chart.data.datasets.forEach(function (ds, i) {
+          var li = document.createElement("li");
+          var btn = document.createElement("button");
+          btn.type = "button";
+          btn.setAttribute("aria-pressed", "true");
+          var swatch = document.createElement("span");
+          swatch.className = "swatch" + (ds.type === "bar" ? " rect" : (ds.borderDash && ds.borderDash.length ? " dashed" : ""));
+          swatch.style.color = ds.type === "bar" ? ds.backgroundColor : ds.borderColor;
+          var label = document.createElement("span");
+          label.textContent = ds.label;
+          btn.appendChild(swatch);
+          btn.appendChild(label);
+          btn.addEventListener("click", function () {
+            var visible = !chart.isDatasetVisible(i);
+            chart.setDatasetVisibility(i, visible);
+            chart.update();
+            btn.classList.toggle("is-off", !visible);
+            btn.setAttribute("aria-pressed", String(visible));
+          });
+          li.appendChild(btn);
+          list.appendChild(li);
+        });
+      }
+
+      // 横軸の設定。表のように 2 段に分けて表示する
+      //   上の段：日（01, 10, 21 …）   … Chart.js の目盛りのラベル
+      //   下の段：年/月（2026/8 …）     … 下の monthBand プラグインが、その月のダイブの幅の真ん中に描く
+      // 月が変わるところに縦線を引き、2 段とも月ごとに区切る（ほかの縦線は引かない）
+      function dateAxis() {
+        return {
+          offset: true,  // 1本ずつの間に区切り線が来るようにする（線 = 前のダイブと次のダイブの境目）
+          ticks: {
+            autoSkip: true,  // 幅が狭い（スマホなど）ときは、重ならないように日のラベルを間引く（月の区切りと年/月はプラグインが描くので消えない）
+            autoSkipPadding: 4,
+            maxRotation: 0,
+            font: { size: 11 },
+            callback: function (value, i) {
+              return trend.dates[i].slice(8, 10);  // "2026/08/10" → "10"（日だけ。1 桁の日は "01" のように 2 桁）
+            }
+          },
+          // 下の段（年/月）を描く場所を、横軸の高さに足しておく（凡例が下の段に重ならないように）
+          afterFit: function (scale) {
+            scale.height += MONTH_ROW;
+          },
+          grid: { display: false }  // 縦線は、月の境目だけ monthBand プラグインが引く
+        };
+      }
+
+      // 横軸の下の段（年/月）を描く Chart.js のプラグイン。
+      // 同じ月のダイブをひとまとまりにして、その幅の真ん中に「2026/8」を描き、月の境目に縦線を引く
+      var MONTH_ROW = 22;  // 下の段の高さ（px）
+      var monthBand = {
+        id: "monthBand",
+        // グラフの線や棒より先に描く（区切り線がデータの後ろに来るように）
+        beforeDatasetsDraw: function (chart) {
+          var x = chart.scales.x;
+          var ctx = chart.ctx;
+          var n = trend.labels.length;
+          var half = x.width / n / 2;  // 1本分の幅の半分（offset: true なので、i 本目の位置はマスの真ん中にある）
+          var bottom = x.bottom;  // 横軸の下端（afterFit で下の段の高さを足してある）
+          var top = bottom - MONTH_ROW;  // 上の段（日）の下端 = 下の段の上端
+
+          ctx.save();
+          ctx.strokeStyle = border;
+          ctx.lineWidth = 1;
+          // 上の段と下の段の間の横線
+          ctx.beginPath();
+          ctx.moveTo(x.left, top);
+          ctx.lineTo(x.right, top);
+          ctx.stroke();
+
+          ctx.font = "11px " + Chart.defaults.font.family;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          var start = 0;  // 今の月の最初のダイブ
+          for (var i = 1; i <= n; i++) {
+            if (i < n && !isMonthStart(i)) continue;  // まだ同じ月
+            // start 〜 i-1 本目が 1 つの月（日のラベルが間引かれていても位置が分かるよう、目盛りではなく何本目かで位置を求める）
+            var left = x.getPixelForValue(start) - half;
+            var right = x.getPixelForValue(i - 1) + half;
+            if (start > 0) {
+              // 月の境目の縦線を、グラフの上端から横軸の 2 段目の下まで通して引く
+              ctx.strokeStyle = border;
+              ctx.beginPath();
+              ctx.moveTo(left, chart.chartArea.top);
+              ctx.lineTo(left, top);
+              ctx.stroke();
+              ctx.strokeStyle = muted;  // 横軸の部分は、少しはっきりした色にする
+              ctx.beginPath();
+              ctx.moveTo(left, chart.chartArea.bottom);
+              ctx.lineTo(left, bottom);
+              ctx.stroke();
+            }
+            // 年/月のラベル（例: 2026/8）。幅が足りないときは月だけ（例: 8月）、それでも足りなければ書かない
+            var ym = trend.months[start].split("/");
+            var label = ym[0] + "/" + Number(ym[1]);
+            var width = right - left - 4;
+            if (ctx.measureText(label).width > width) label = Number(ym[1]) + "月";
+            if (ctx.measureText(label).width <= width) {
+              ctx.fillStyle = muted;
+              ctx.fillText(label, (left + right) / 2, top + MONTH_ROW / 2);
+            }
+            start = i;
+          }
+          ctx.restore();
+        }
+      };
+
+      // ツールチップの見出し（例: 「5本目 2026/11/03」）
+      function tooltipTitle(items) {
+        var i = items[0].dataIndex;  // 何番目の回か（0始まり）
+        return trend.numbers[i] + "本目　" + trend.dates[i];
+      }
+
       // 推移グラフ: 単位が違う5項目を1つのグラフに重ね、単位ごとに縦軸を分ける
       (function () {
         var canvas = document.getElementById("trend-chart");  // 推移グラフを描く canvas を取得する
-        var el = document.getElementById("trend-data");  // json_script が出力したデータのタグを取得する
-        var d = null;  // 読み出したデータを入れる変数
-        try { d = el ? JSON.parse(el.textContent) : null; } catch (e) {}  // タグがあれば JSON を読み出す（失敗したら null のまま）
-        if (!d || !Array.isArray(d.labels) || !d.labels.length || typeof Chart === "undefined") {  // データがない、または Chart.js がない場合は
+        if (!hasTrend) {  // データがない、または Chart.js がない場合は
           markEmpty(canvas);  // 「データがありません」を表示して
           return;  // 描画しない
         }
@@ -161,51 +407,30 @@
           };
         }
 
-        new Chart(canvas, {  // 推移グラフを描く（棒と折れ線を混ぜるので、type は各データ側で指定する）
+        fitScroll(canvas, 220);  // 縦軸が左に 1 本・右に 3 本あるので、その分の幅を足す
+
+        var chart = new Chart(canvas, {  // 推移グラフを描く（棒と折れ線を混ぜるので、type は各データ側で指定する）
+          plugins: [monthBand],  // 横軸の下の段（年/月）を描く
           data: {
-            labels: d.labels,  // 横軸のラベル（1本目, 2本目, …）
+            labels: trend.labels,  // 横軸のラベル（月/日）
             datasets: [  // グラフに描く項目の一覧
               {
-                type: "bar", label: "タンク残圧（開始時−終了時）", data: d.pressure_used,  // 棒グラフ: タンク残圧
+                type: "bar", label: "タンク残圧（開始時−終了時）", data: trend.pressure_used,  // 棒グラフ: タンク残圧
                 yAxisID: "yPress", unit: "", backgroundColor: "rgba(247, 185, 85, 0.35)", borderRadius: 4, order: 10  // 左の yPress 軸を使う。半透明の色にし、order を大きくして折れ線の後ろに描く
               },
-              line("最大深度", d.max_depth, accent2, "yDepth", "m", false),  // 折れ線: 最大深度（実線）
-              line("平均深度", d.ave_depth, accent2, "yDepth", "m", true),  // 折れ線: 平均深度（点線。最大深度と同じ色・同じ軸）
-              line("潜水時間", d.duration, accent, "yTime", "分", false),  // 折れ線: 潜水時間
-              line("水底温度", d.bottom_temp, "#ff8a80", "yTemp", "℃", false)  // 折れ線: 水底温度
+              line("最大深度", trend.max_depth, accent2, "yDepth", "m", false),  // 折れ線: 最大深度（実線）
+              line("平均深度", trend.ave_depth, accent2, "yDepth", "m", true),  // 折れ線: 平均深度（点線。最大深度と同じ色・同じ軸）
+              line("潜水時間", trend.duration, accent, "yTime", "分", false),  // 折れ線: 潜水時間
+              line("水底温度", trend.bottom_temp, "#ff8a80", "yTemp", "℃", false)  // 折れ線: 水底温度
             ]
           },
           options: {
-            interaction: { mode: "index", intersect: false },  // マウスを乗せた回（n本目）の全項目をまとめてツールチップに出す。点の真上でなくても反応する
+            interaction: { mode: "index", intersect: false },  // マウスを乗せた回の全項目をまとめてツールチップに出す。点の真上でなくても反応する
             plugins: {
-              legend: {
-                position: "bottom",  // 凡例をグラフの下に表示する
-                labels: {
-                  // 凡例の印を、折れ線は線（平均深度は点線）、棒グラフは四角で表示する
-                  usePointStyle: true,  // 凡例の印を、標準の四角ではなく pointStyle で指定した形にする
-                  pointStyleWidth: 32,  // 印の横幅（線が見えるように広めにする）
-                  generateLabels: function (chart) {  // 凡例の項目を作る処理を上書きする
-                    var items = Chart.defaults.plugins.legend.labels.generateLabels(chart);  // まず Chart.js 標準の凡例項目を作る
-                    items.forEach(function (item) {  // 凡例の項目を1つずつ調整する
-                      var ds = chart.data.datasets[item.datasetIndex];  // その凡例に対応するデータ（datasets の1件）
-                      if (ds.type === "line") {  // 折れ線の場合は
-                        item.pointStyle = "line";  // 印を線にする
-                        item.lineWidth = 3;  // 線の太さ
-                        item.lineDash = ds.borderDash || [];  // グラフと同じ点線の設定にする（平均深度だけ点線になる）
-                      } else {  // 棒グラフの場合は
-                        item.pointStyle = "rect";  // 印を四角にする
-                      }
-                    });
-                    return items;  // 調整した凡例項目を返す
-                  }
-                }
-              },
+              legend: { display: false },  // 凡例はグラフの外に HTML で作る（htmlLegend）。横にスクロールしても見えるように
               tooltip: {
                 callbacks: {
-                  title: function (items) {  // ツールチップの見出し
-                    var i = items[0].dataIndex;  // 何番目の回か（0始まり）
-                    return d.labels[i] + "（" + d.dates[i] + "）";  // 例: 「2本目（2026/11/03）」
-                  },
+                  title: tooltipTitle,  // 例: 「5本目　2026/11/03」
                   label: function (ctx) {  // ツールチップの各行
                     var v = ctx.parsed.y;  // その項目の値
                     if (v === null || v === undefined) return ctx.dataset.label + ": —";  // 値がない場合は「—」を表示する
@@ -215,6 +440,7 @@
               }
             },
             scales: {  // 縦軸の設定。キー名（yPress など）が、datasets の yAxisID と対応する
+              x: dateAxis(),  // 横軸: 月日（月の区切りの線とラベル付き）
               // 左側: タンク残圧（横の補助線もこの軸に合わせる） / 右側: 深度・水温・潜水時間
               yPress: Object.assign(axis("left", "タンク残圧", true), { min: 0, max: 200 }),  // 左側・補助線あり。目盛りを0〜200に固定する
               yDepth: Object.assign(axis("right", "深度 (m)", false), { reverse: true, beginAtZero: true }),  // 右側。上を0にして、深いほど下に描く
@@ -223,15 +449,154 @@
             }
           }
         });
+        htmlLegend(chart, document.getElementById("trend-legend"));  // グラフの外に凡例を作る
       })();  // 推移グラフの関数をすぐ実行する
+
+      // 透明度の推移（折れ線グラフ）
+      (function () {
+        var canvas = document.getElementById("transparency-chart");
+        if (!hasTrend || !trend.transparency || !trend.transparency.some(function (v) { return v !== null; })) {
+          markEmpty(canvas);
+          return;
+        }
+        fitScroll(canvas, 60);  // 縦軸が左に 1 本だけなので、その分の幅を足す
+        new Chart(canvas, {
+          type: "line",
+          plugins: [monthBand],  // 横軸の下の段（年/月）を描く
+          data: {
+            labels: trend.labels,  // 横軸のラベル（月/日）
+            datasets: [{
+              label: "透明度", data: trend.transparency,
+              borderColor: accent, backgroundColor: "rgba(47, 224, 196, 0.15)", fill: "origin",  // 線の下を薄く塗る
+              tension: 0.3, pointRadius: 3, spanGaps: true
+            }]
+          },
+          options: {
+            interaction: { mode: "index", intersect: false },
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { title: tooltipTitle, label: function (ctx) { return "透明度: " + ctx.parsed.y + "m"; } } }
+            },
+            scales: {
+              x: dateAxis(),
+              y: { beginAtZero: true, title: { display: true, text: "透明度 (m)" } }
+            }
+          }
+        });
+      })();
+
+      /* ---------------- 潜った場所の地図 ---------------- */
+      (function () {
+        var el = document.getElementById("dive-map");
+        var places = readJson("map-data") || [];
+        if (!places.length || typeof L === "undefined") {
+          markEmpty(el);
+          return;
+        }
+        var map = L.map(el, { scrollWheelZoom: false });  // ページのスクロール中に地図が拡大しないように
+        map.attributionControl.setPrefix(false);
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          maxZoom: 19,
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
+          referrerPolicy: "strict-origin-when-cross-origin"  // OpenStreetMap はサイトのオリジン（Referer）がないと 403 になる
+        }).addTo(map);
+
+        var bounds = [];
+        places.forEach(function (p) {
+          // 本数が多いほど大きい印にする（面積が本数に比例するよう平方根を使う）
+          var marker = L.circleMarker([p.lat, p.lng], {
+            radius: 6 + Math.sqrt(p.count) * 4, color: "#04141a", weight: 2, fillColor: accent, fillOpacity: 0.85
+          }).addTo(map);
+
+          // ポップアップの中身は textContent で作る（場所名などに HTML が入っていても安全）
+          var box = document.createElement("div");
+          box.className = "dash-map-popup";
+          function row(tag, textValue) {
+            var node = document.createElement(tag);
+            node.textContent = textValue;
+            box.appendChild(node);
+          }
+          row("strong", p.name);
+          row("p", p.count + " 本（最後に潜った日: " + p.last_date + "）");
+          if (p.points.length) row("p", "ポイント: " + p.points.join("、"));
+          if (p.shops.length) row("p", "ショップ: " + p.shops.join("、"));
+          marker.bindPopup(box);
+          marker.bindTooltip(p.name + "（" + p.count + " 本）");
+          bounds.push([p.lat, p.lng]);
+        });
+        if (bounds.length === 1) map.setView(bounds[0], 10);
+        else map.fitBounds(bounds, { padding: [30, 30], maxZoom: 10 });  // すべての印が入るように表示範囲を合わせる
+      })();
+
+      /* ---------------- 発見できた魚のワードクラウド ---------------- */
+      (function () {
+        var canvas = document.getElementById("fish-cloud");
+        var tip = document.getElementById("fish-cloud-tip");
+        var words = readJson("fish-data") || [];  // [[名前, 回数], ...]（多い順）
+        if (!words.length || typeof WordCloud === "undefined" || !WordCloud.isSupported) {
+          markEmpty(canvas);
+          return;
+        }
+        var max = words[0][1];
+        var min = words[words.length - 1][1];
+        var colors = [accent, "#f7b955", accent2, "#ff8a80", "#a78bfa", text];
+        var indexOf = {};  // 名前 → 多い順の順位（色を決めるのに使う）
+        words.forEach(function (w, i) { indexOf[w[0]] = i; });
+
+        function render() {
+          // 高解像度の画面でもぼやけないよう、canvas の実際のピクセル数を画面の倍率に合わせる
+          var dpr = window.devicePixelRatio || 1;
+          var width = canvas.clientWidth;
+          var height = canvas.clientHeight;
+          canvas.width = Math.round(width * dpr);
+          canvas.height = Math.round(height * dpr);
+          // 回数に応じて文字の大きさを決める（いちばん少ない魚 14px 〜 いちばん多い魚 最大 40px）
+          var maxSize = Math.min(40, width / 9);
+          WordCloud(canvas, {
+            list: words,
+            fontFamily: '"Noto Sans JP", system-ui, sans-serif',
+            fontWeight: "700",
+            weightFactor: function (count) {
+              var t = max === min ? 1 : (count - min) / (max - min);
+              return (14 + t * (maxSize - 14)) * dpr;
+            },
+            gridSize: Math.round(12 * dpr),  // 言葉と言葉の間のすき間（小さいと、日本語の言葉どうしがつながって読めなくなる）
+            rotateRatio: 0,  // 日本語は読みやすいように横書きだけにする
+            shrinkToFit: true,  // 入りきらない言葉は、小さくして入れる
+            backgroundColor: "transparent",
+            // 言葉ごとに色を変える（同じ色の言葉が隣に並ぶと、1 つの言葉に見えてしまうため）
+            color: function (word) {
+              var i = indexOf[word] || 0;
+              return colors[i % colors.length];
+            },
+            // マウスを乗せた魚の名前と回数を表示する
+            hover: function (item, dimension, event) {
+              if (!item) { tip.hidden = true; return; }
+              var rect = canvas.getBoundingClientRect();
+              tip.textContent = item[0] + "：" + item[1] + " 回";
+              tip.style.left = (event.clientX - rect.left) + "px";
+              tip.style.top = (event.clientY - rect.top) + "px";
+              tip.hidden = false;
+            }
+          });
+        }
+        render();
+        canvas.addEventListener("mouseleave", function () { tip.hidden = true; });
+
+        // 画面の幅が変わったら描き直す（連続して呼ばれないよう、少し待ってから）
+        var timer = null;
+        var lastWidth = canvas.clientWidth;
+        window.addEventListener("resize", function () {
+          clearTimeout(timer);
+          timer = setTimeout(function () {
+            if (canvas.clientWidth !== lastWidth) {
+              lastWidth = canvas.clientWidth;
+              render();
+            }
+          }, 200);
+        });
+      })();
     })();  // 全体の関数をすぐ実行する
   </script>
-{% else %}
-  <div class="empty">
-    まだダイブログがありません。記録すると、ここに分析結果が表示されます。
-    <div style="margin-top:20px;">
-      <a href="{% url 'divelogs:log_create' %}" class="btn btn-accent">＋ 新しいダイブログ</a>
-    </div>
-  </div>
 {% endif %}
 {% endblock %}
