@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}ログ一覧{% endblock %}
+{% block extra_head %}{% include "logs/_map_assets.html" with mode="css" %}{% endblock %}
+{% block extra_js %}{% include "logs/_map_assets.html" with mode="js" %}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -139,22 +141,32 @@
     {% for log in logs %}
       <article class="card">
         {% comment %}
-          表紙は「複数枚の 1 枚目（log.photos）→ 今までの 1 枚（log.photo）」の順。
-          1 行ごとに写真のクエリが走らないように、ビューで prefetch_related("photos") しておく想定。
+          カードのタイトル画像は「ダイビングショップの地図 → 写真の 1 枚目 → プレースホルダー」の順。
+          地図は static/js/shop_map.js が、カードが画面に入ったときに作る（操作はできず、クリックで詳細へ）。
+          写真は、ビューの prefetch_related("photos") でまとめて読んでいるので、カードごとにクエリは走らない。
         {% endcomment %}
         {% with photos=log.photos.all %}
-          {% with cover=photos.0 %}
-            <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not cover and not log.photo %}placeholder{% endif %}">
-              {% if cover %}
-                <img src="{{ cover.image.url }}" alt="{{ log.location }}の写真" loading="lazy">
-                {% if photos|length > 1 %}<span class="card-photo-count">{{ photos|length }} 枚</span>{% endif %}
-              {% elif log.photo %}
-                <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真" loading="lazy">
-              {% else %}
-                <span>◒</span>
-              {% endif %}
-            </a>
-          {% endwith %}
+          {% if log.has_shop_location %}
+            <div class="card-media card-map">
+              <div class="card-map-canvas map-dark" data-shop-map data-zoom="13"
+                   data-lat="{{ log.dive_shop_lat|stringformat:'f' }}" data-lng="{{ log.dive_shop_lng|stringformat:'f' }}"></div>
+              <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-map-link" aria-label="{{ log.location }}の詳細を見る">
+                <span class="card-shop-name">{{ log.dive_shop_name }}</span>
+              </a>
+              {% if photos %}<span class="card-photo-count">写真 {{ photos|length }} 枚</span>{% endif %}
+            </div>
+          {% else %}
+            {% with cover=photos.0 %}
+              <a href="{% url 'divelogs:log_detail' log.pk %}" class="card-media {% if not cover %}placeholder{% endif %}">
+                {% if cover %}
+                  <img src="{{ cover.image.url }}" alt="{{ log.location }}の写真" loading="lazy">
+                  {% if photos|length > 1 %}<span class="card-photo-count">{{ photos|length }} 枚</span>{% endif %}
+                {% else %}
+                  <span>◒</span>
+                {% endif %}
+              </a>
+            {% endwith %}
+          {% endif %}
         {% endwith %}
         <div class="card-body">
           <div>

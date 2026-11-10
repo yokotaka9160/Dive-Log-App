@@ -200,7 +200,34 @@ class DiveLog(models.Model):
         blank=True,
         null=True,
         verbose_name=_("写真")
+    )  # 旧：1 枚だけの写真。今は DiveLogPhoto（log.photos）を使う。マイグレーション 0007 で DiveLogPhoto にコピー済み
+
+    # 利用したダイビングショップ（地図で検索して選ぶ。場所は緯度・経度で持つ）
+    dive_shop_name = models.CharField(
+        max_length=200,
+        blank=True,
+        verbose_name=_("ダイビングショップ")
     )
+    dive_shop_address = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name=_("ショップの住所")
+    )
+    dive_shop_lat = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name=_("ショップの緯度")
+    )
+    dive_shop_lng = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name=_("ショップの経度")
+    )
+
+    @property
+    def has_shop_location(self):
+        """ショップの場所（緯度・経度）が登録されているか。地図を出すかどうかの判定に使う"""
+        return self.dive_shop_lat is not None and self.dive_shop_lng is not None
 
     #DiveLogモデルの設定
     class Meta:
@@ -212,6 +239,15 @@ class DiveLog(models.Model):
         return f"{self.dive_date} - {self.dive_point_name}"
 
 class DiveLogPhoto(models.Model):
-    log = models.ForeignKey(DiveLog, on_delete=models.CASCADE, related_name='photos')
-    image = models.ImageField(upload_to='dive_log_photos/')
-    created_at = models.DateTimeField(auto_now_add=True)
+    """ダイブログの写真（1 つのログに複数枚）。log.photos.all で、そのログの写真を追加した順に取り出せる"""
+    log = models.ForeignKey(DiveLog, on_delete=models.CASCADE, related_name='photos', verbose_name=_("ダイブログ"))
+    image = models.ImageField(upload_to='dive_log_photos/', verbose_name=_("画像"))
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name=_("追加日時"))
+
+    class Meta:
+        verbose_name = _("ダイブログの写真")
+        verbose_name_plural = _("ダイブログの写真")
+        ordering = ['id']  # 追加した順
+
+    def __str__(self):
+        return f"{self.log} の写真 {self.pk}"

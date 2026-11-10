@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}{{ form_title }}{% endblock %}
+{% block extra_head %}{% include "logs/_map_assets.html" with mode="css" %}{% endblock %}
+{% block extra_js %}{% include "logs/_map_assets.html" with mode="js" %}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -37,6 +39,38 @@
         <label for="{{ form.entry_way.id_for_label }}">{{ form.entry_way.label }}</label>
         {{ form.entry_way }}{{ form.entry_way.errors }}
       </div>
+    </div>
+
+    {% comment %}
+      利用したダイビングショップ。地図で検索して選ぶと、static/js/shop_map.js が
+      ショップ名・住所（hidden）・緯度・経度（hidden）を入れる。
+    {% endcomment %}
+    <div class="field shop-field" data-shop-picker
+         data-name-id="{{ form.dive_shop_name.id_for_label }}"
+         data-address-id="{{ form.dive_shop_address.id_for_label }}"
+         data-lat-id="{{ form.dive_shop_lat.id_for_label }}"
+         data-lng-id="{{ form.dive_shop_lng.id_for_label }}">
+      <label for="shop-query">{{ form.dive_shop_name.label }}</label>
+      <div class="shop-search">
+        <input type="search" id="shop-query" data-shop-query placeholder="ショップ名・地名で検索（例: 石垣島 ダイビング）" autocomplete="off">
+        <button type="button" class="btn btn-sm" data-shop-search>検索</button>
+      </div>
+      <ul class="shop-results" data-shop-results hidden></ul>
+      <div class="shop-map map-dark" data-picker-map></div>
+      <div class="shop-map-actions">
+        <button type="button" class="btn btn-outline btn-sm" data-shop-area>この範囲のダイビングショップを探す</button>
+        <span class="helptext">見つからないときは、地図をクリックして場所を指定できます</span>
+      </div>
+      <p class="helptext shop-status" data-shop-status aria-live="polite"></p>
+
+      <div class="shop-selected" data-shop-selected hidden>
+        <label for="{{ form.dive_shop_name.id_for_label }}" class="shop-selected-label">選んだショップ</label>
+        {{ form.dive_shop_name }}
+        <p class="shop-address" data-shop-address-text></p>
+        <button type="button" class="btn btn-ghost btn-sm" data-shop-clear>選択を外す</button>
+      </div>
+      {{ form.dive_shop_address }}{{ form.dive_shop_lat }}{{ form.dive_shop_lng }}
+      {{ form.dive_shop_name.errors }}
     </div>
 
     <div class="form-row">

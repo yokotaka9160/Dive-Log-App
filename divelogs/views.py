@@ -16,8 +16,10 @@ from django.views.generic import (
     TemplateView,
 )
 
+from django.db import transaction
+
 from .forms import DiveLogForm, DiveLogFilterForm
-from .models import DiveLog
+from .models import DiveLog, DiveLogPhoto
 from datetime import timedelta
 from django.views.decorators.http import require_POST
 from google import genai
@@ -50,7 +52,8 @@ class LogListView(ListView):
     paginate_by = 9
 
     def get_queryset(self):
-        qs = DiveLog.objects.select_related("user").annotate(
+        # prefetch_related("photos")：カードの表紙・枚数のために、1 ページ分の写真を 1 回のクエリでまとめて読む
+        qs = DiveLog.objects.select_related("user").prefetch_related("photos").annotate(
             duration_db=ExpressionWrapper(
                 F("exit_date") - F("entry_date"), output_field=DurationField()
             ),
@@ -151,7 +154,32 @@ class LogDetailView(DetailView):
     #     return ctx
 
 
-class LogCreateView(LoginRequiredMixin, CreateView):
+class PhotoSaveMixin:
+    """フォームの写真（photos）を DiveLogPhoto として保存し、削除にチェックした写真を消す。
+
+    DiveLogForm.save() が保存するのは DiveLog だけなので、写真はここで別に保存する。
+    写真を結びつけるには DiveLog の pk が必要なので、必ず DiveLog を保存した後に呼ぶ。
+    """
+
+    def save_photos(self, form):
+        log = self.object
+        # 削除：フォームの clean() で「このログの写真」だけに絞り込んだ pk を使う
+        for photo in log.photos.filter(pk__in=form.photo_ids_to_delete):
+            photo.image.delete(save=False)  # 画像ファイルも消す
+            photo.delete()
+        # 追加：選ばれた順に 1 枚ずつ保存する
+        for image in form.cleaned_data.get("photos") or []:
+            DiveLogPhoto.objects.create(log=log, image=image)
+
+    def form_valid(self, form):
+        # ログの保存と写真の保存を 1 つの処理にまとめ、途中で失敗したら全部取り消す
+        with transaction.atomic():
+            response = super().form_valid(form)  # ここで DiveLog が保存され、self.object に入る
+            self.save_photos(form)
+        return response
+
+
+class LogCreateView(LoginRequiredMixin, PhotoSaveMixin, CreateView):
     model = DiveLog
     form_class = DiveLogForm
     template_name = "logs/log_form.html"
@@ -177,7 +205,7 @@ class OwnerRequiredMixin(UserPassesTestMixin):
         return self.get_object().user == self.request.user
 
 
-class LogUpdateView(LoginRequiredMixin, OwnerRequiredMixin, UpdateView):
+class LogUpdateView(LoginRequiredMixin, OwnerRequiredMixin, PhotoSaveMixin, UpdateView):
     model = DiveLog
     form_class = DiveLogForm
     template_name = "logs/log_form.html"
@@ -203,6 +231,9 @@ class LogDeleteView(LoginRequiredMixin, OwnerRequiredMixin, DeleteView):
     success_url = reverse_lazy('divelogs:log_list')
 
     def form_valid(self, form):
+        # ログを消すと DiveLogPhoto の行は CASCADE で消えるが、画像ファイルは残るので先に消す
+        for photo in self.object.photos.all():
+            photo.image.delete(save=False)
         messages.success(self.request, "ダイブログを削除しました。")
         return super().form_valid(form)
 

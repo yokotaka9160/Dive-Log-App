@@ -168,6 +168,59 @@ a.detail-media { display: block; }
 .gallery-thumb:hover { opacity: 1; }
 .gallery-thumb.is-active { border-color: var(--accent); opacity: 1; }
 
+/* 詳細画面のギャラリー：何枚目か */
+.gallery-main { position: relative; }
+.gallery-counter {
+  position: absolute; right: 10px; bottom: 10px; font-size: 12px; font-family: var(--mono);
+  background: rgba(5, 20, 28, .8); border-radius: 999px; padding: 3px 10px; color: var(--text);
+}
+
+/* ダイビングショップの地図（Leaflet） */
+.map-dark .leaflet-tile-pane { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }  /* 地図をダークテーマに合わせる */
+.leaflet-container { background: var(--surface-2); font-family: inherit; }
+.leaflet-container .leaflet-control-attribution { background: rgba(5, 20, 28, .75); color: var(--muted); font-size: 10px; }
+.leaflet-container .leaflet-control-attribution a { color: var(--muted); }
+.leaflet-tooltip { font-family: inherit; }
+
+.shop-search { display: flex; gap: 8px; }
+.shop-search input { flex: 1; min-width: 0; }
+.shop-search .btn { flex-shrink: 0; }
+.shop-results {
+  list-style: none; margin: 8px 0 0; padding: 4px; max-height: 240px; overflow-y: auto;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+}
+.shop-result {
+  display: grid; gap: 2px; width: 100%; text-align: left; cursor: pointer; font-family: inherit;
+  background: transparent; border: 0; border-radius: 8px; padding: 8px 10px; color: var(--text);
+}
+.shop-result:hover, .shop-result:focus-visible { background: var(--surface-2); outline: none; }
+.shop-result strong { font-size: 14px; font-weight: 500; }
+.shop-result span { font-size: 12px; color: var(--muted); }
+.shop-map { height: 300px; margin-top: 10px; border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+.shop-map-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.shop-status { min-height: 1em; margin: 6px 0 0; }
+.shop-status.is-error { color: var(--danger); }
+.shop-selected { margin-top: 10px; padding: 12px; border: 1px solid var(--accent); border-radius: 10px; display: grid; gap: 6px; justify-items: start; }
+.shop-selected input { width: 100%; }
+.shop-selected-label { font-size: 12px; color: var(--muted); margin: 0; }
+.shop-address { font-size: 13px; color: var(--muted); margin: 0; }
+
+/* 詳細画面のショップ */
+.shop-card { margin: 16px 0; padding: 16px; display: grid; gap: 4px; }
+.shop-card-label { font-size: 12px; color: var(--muted); margin: 0; }
+.shop-card-name { font-size: 16px; font-weight: 700; margin: 0; }
+.shop-map-detail { height: 220px; margin-top: 8px; }
+.shop-card-link { font-size: 12px; color: var(--accent); margin-top: 4px; }
+
+/* 一覧カードのショップ地図（地図の上に透明なリンクを重ね、クリックで詳細へ） */
+.card-map-canvas { position: absolute; inset: 0; z-index: 0; }
+.card-map-link { position: absolute; inset: 0; z-index: 1; display: flex; align-items: flex-end; padding: 10px; }
+.card-shop-name {
+  max-width: calc(100% - 90px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; font-weight: 700; color: #04141a; background: var(--accent); border-radius: 999px; padding: 4px 10px;
+}
+.card-map .card-photo-count { top: 8px; bottom: auto; z-index: 2; }
+
 /* 一覧カードの写真枚数 */
 .card-photo-count {
   position: absolute; right: 8px; bottom: 8px; font-size: 12px; color: var(--text);

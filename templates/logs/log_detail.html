@@ -1,5 +1,7 @@
 {% extends "base.html" %}
 {% block title %}Dive No.{{ log.calculated_dive_number }}{% endblock %}
+{% block extra_head %}{% if log.has_shop_location %}{% include "logs/_map_assets.html" with mode="css" %}{% endif %}{% endblock %}
+{% block extra_js %}{% if log.has_shop_location %}{% include "logs/_map_assets.html" with mode="js" %}{% endif %}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -16,14 +18,15 @@
 <div class="detail-grid">
   <div>
     {% comment %}
-      写真は「複数枚（log.photos）→ 今までの 1 枚（log.photo）→ プレースホルダー」の順で表示する。
-      バックエンドに DiveLogPhoto（related_name="photos"）ができるまでは log.photos が空になり、今までどおり 1 枚の表示になる。
+      アップロードした写真（log.photos）。大きい写真をクリックすると元のサイズで開き、下のサムネイルで切り替えられる。
+      旧フィールドの 1 枚（log.photo）は、マイグレーション 0007 で log.photos にコピー済みなので、ここでは使わない。
     {% endcomment %}
     {% with photos=log.photos.all %}
       {% if photos %}
         <div class="gallery">
           <a href="{{ photos.0.image.url }}" target="_blank" rel="noopener" class="detail-media gallery-main" id="gallery-main" title="元のサイズで開く">
             <img src="{{ photos.0.image.url }}" alt="{{ log.location }}の写真 1">
+            {% if photos|length > 1 %}<span class="gallery-counter" id="gallery-counter">1 / {{ photos|length }}</span>{% endif %}
           </a>
           {% if photos|length > 1 %}
             <div class="gallery-thumbs" role="list">
@@ -37,10 +40,6 @@
             </div>
           {% endif %}
         </div>
-      {% elif log.photo %}
-        <a href="{{ log.photo.url }}" target="_blank" rel="noopener" class="detail-media" title="元のサイズで開く">
-          <img src="{{ log.photo.url }}" alt="{{ log.location }}の写真">
-        </a>
       {% else %}
         <div class="detail-media placeholder">◒</div>
       {% endif %}
@@ -80,7 +79,21 @@
       </div>
     </div>
 
-    {% if log.buddy %}<p class="meta-line">バディ: {{ log.buddy }}</p>{% endif %}
+    {% if log.dive_shop_name %}
+      <div class="shop-card card-panel">
+        <p class="shop-card-label">{{ form.dive_shop_name.label }}</p>
+        <p class="shop-card-name">{{ log.dive_shop_name }}</p>
+        {% if log.dive_shop_address %}<p class="shop-address">{{ log.dive_shop_address }}</p>{% endif %}
+        {% if log.has_shop_location %}
+          <div class="shop-map shop-map-detail map-dark" data-shop-map data-interactive="true" data-zoom="15"
+               data-lat="{{ log.dive_shop_lat|stringformat:'f' }}" data-lng="{{ log.dive_shop_lng|stringformat:'f' }}"
+               role="img" aria-label="{{ log.dive_shop_name }}の地図"></div>
+          <a class="shop-card-link" target="_blank" rel="noopener"
+             href="https://www.openstreetmap.org/?mlat={{ log.dive_shop_lat|stringformat:'f' }}&amp;mlon={{ log.dive_shop_lng|stringformat:'f' }}#map=17/{{ log.dive_shop_lat|stringformat:'f' }}/{{ log.dive_shop_lng|stringformat:'f' }}">大きな地図で見る ↗</a>
+        {% endif %}
+      </div>
+    {% endif %}
+
     <p class="meta-line">記録者: {{ log.user.username }}</p>
     {% comment %}
     <!-- <p class="meta-line">お気に入り: {{ log.favorite_count }} 件</p> -->
@@ -202,12 +215,15 @@
     var main = document.getElementById("gallery-main");
     if (!main) return;
     var img = main.querySelector("img");
+    var counter = document.getElementById("gallery-counter");
+    var thumbs = document.querySelectorAll(".gallery-thumb");
     var base = img.alt.replace(/ \d+$/, "");
-    document.querySelectorAll(".gallery-thumb").forEach(function (thumb) {
+    thumbs.forEach(function (thumb) {
       thumb.addEventListener("click", function () {
         img.src = thumb.dataset.src;
         img.alt = base + " " + thumb.dataset.index;
         main.href = thumb.dataset.src;
+        if (counter) counter.textContent = thumb.dataset.index + " / " + thumbs.length;
         document.querySelectorAll(".gallery-thumb.is-active").forEach(function (t) { t.classList.remove("is-active"); });
         thumb.classList.add("is-active");
       });
